@@ -151,27 +151,68 @@ const getActionLabel = (action: string): string => {
     .join(" ");
 };
 
+const IGNORED_KEYS = ["id", "password", "createdAt", "updatedAt"];
+
+const filterIgnoredKeys = (parsed: any): any => {
+  if (typeof parsed !== "object" || parsed === null) return parsed;
+  if (Array.isArray(parsed)) return parsed.map(filterIgnoredKeys);
+  
+  const filtered: Record<string, any> = {};
+  for (const [key, value] of Object.entries(parsed)) {
+    if (!IGNORED_KEYS.includes(key)) {
+      filtered[key] = value;
+    }
+  }
+  return filtered;
+};
+
+const getDiff = (oldParsed: any, newParsed: any, kind: "old" | "new"): any => {
+  if (typeof oldParsed !== "object" || typeof newParsed !== "object" || !oldParsed || !newParsed) {
+    return filterIgnoredKeys(kind === "old" ? oldParsed : newParsed);
+  }
+
+  const diff: Record<string, any> = {};
+  const allKeys = Array.from(new Set([...Object.keys(oldParsed), ...Object.keys(newParsed)]));
+  
+  for (const key of allKeys) {
+    if (IGNORED_KEYS.includes(key)) continue;
+    // Compare stringified values to catch nested differences
+    if (JSON.stringify(oldParsed[key]) !== JSON.stringify(newParsed[key])) {
+      diff[key] = kind === "old" ? oldParsed[key] : newParsed[key];
+    }
+  }
+  
+  if (Object.keys(diff).length === 0) return "No significant changes";
+  return diff;
+};
+
 const formatAuditRecordText = (
   action: string,
   rawValue: string | undefined,
   kind: "old" | "new",
+  otherRawValue?: string | undefined
 ): string => {
   if (!rawValue) {
     return kind === "old" ? "No previous value." : "No additional details.";
   }
 
-  const parsed = parseAuditPayload(rawValue);
+  let parsed = parseAuditPayload(rawValue);
+
+  // If this is an update and we have both old and new values, filter to show only changes
+  if (/(UPDATE|CHANGE|EDIT)/.test(action) && otherRawValue) {
+      const otherParsed = parseAuditPayload(otherRawValue);
+      parsed = kind === "old" ? getDiff(parsed, otherParsed, "old") : getDiff(otherParsed, parsed, "new");
+  } else {
+      parsed = filterIgnoredKeys(parsed);
+  }
+
   const details = stringifyAuditValue(parsed);
 
   if (/(UPDATE|CHANGE|EDIT)/.test(action)) {
-    return kind === "old" ? `Before: ${details}` : `After: ${details}`;
+    return kind === "old" ? `${details}` : `${details}`;
   }
 
-  if (/USER_LOGIN/.test(action)) {
-    return `${details}`;
-  }
-
-  if (/USER_LOGOUT/.test(action)) {
+  if (/USER_LOGIN/.test(action) || /USER_LOGOUT/.test(action)) {
     return `${details}`;
   }
 
@@ -220,8 +261,8 @@ const mapAuditLogToRow = (log: AuditLog): AuditLogRow => {
     tone,
     oldRecord: log.OldValue || "-",
     newRecord: log.NewValue || "-",
-    oldRecordText: formatAuditRecordText(log.Action, log.OldValue, "old"),
-    newRecordText: formatAuditRecordText(log.Action, log.NewValue, "new"),
+    oldRecordText: formatAuditRecordText(log.Action, log.OldValue, "old", log.NewValue),
+    newRecordText: formatAuditRecordText(log.Action, log.NewValue, "new", log.OldValue),
   };
 };
 

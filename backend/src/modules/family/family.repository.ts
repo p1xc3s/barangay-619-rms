@@ -206,6 +206,23 @@ export class FamilyRepository {
     }
   }
 
+  // Update family member relationship
+  static async updateFamilyMemberRelationship(
+    familyHeadId: number,
+    residentId: number,
+    relationship: string,
+  ) {
+    const conn = await pool.getConnection();
+    try {
+      await conn.query(
+        `UPDATE Family SET RelationshipToFamilyHead = ? WHERE FamilyHeadID = ? AND ResidentID = ?`,
+        [relationship, familyHeadId, residentId],
+      );
+    } finally {
+      conn.release();
+    }
+  }
+
   //Get all family members of a household
   static async getFamilyByHousehold(householdId: number) {
     const conn = await pool.getConnection();

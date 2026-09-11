@@ -14,7 +14,8 @@ const toPositiveInteger = (value: unknown): number | null => {
 };
 
 const isValidOccupancyStatus = (value: unknown): boolean =>
-  typeof value === "string" && ["Owner", "Renter", "Sharer", "Boarder"].includes(value.trim());
+  typeof value === "string" &&
+  ["Owner", "Renter", "Sharer", "Boarder"].includes(value.trim());
 
 export class ResidentService {
   static async createResident(data: any, userId: number) {
@@ -165,11 +166,29 @@ export class ResidentService {
       throw { status: 400, message: "No changes applied!" };
     }
 
+        // Standardize both payloads to have identical, human-readable keys
+    const mapToReadable = (res: any) => ({
+      "First Name": res.FirstName || res.firstName,
+      "Middle Name": res.MiddleName || res.middleName,
+      "Last Name": res.LastName || res.lastName,
+      "Sex": res.Sex || res.sex,
+      "Date of Birth": res.DateOfBirth || res.dateOfBirth,
+      "Place of Birth": res.PlaceOfBirth || res.placeOfBirth,
+      "Civil Status": res.CivilStatus || res.civilStatus,
+      "Citizenship": res.Citizenship || res.citizenship,
+      "Religion": res.Religion || res.religion,
+      "Contact Number": res.RContactNumber || res.rContactNumber || res.contactNumber,
+      "Email": res.REmail || res.rEmail || res.email,
+      "Resident Status": res.ResidentStatus || res.residentStatus,
+      "Inhabitant Type": res.InhabitantType || res.inhabitantType,
+      "Occupancy Status": res.OccupancyStatus || res.occupancyStatus,
+    });
+
     await AuditTrailRepository.log({
       userId,
       action: "UPDATE_RESIDENT",
-      oldValue: JSON.stringify({ id }),
-      newValue: JSON.stringify(data),
+      oldValue: JSON.stringify(mapToReadable(existing)),
+      newValue: JSON.stringify(mapToReadable(data)),
     });
 
     return true;

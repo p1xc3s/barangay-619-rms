@@ -159,12 +159,24 @@ export class OfficialService {
       throw { status: 400, message: "No changes applied!" };
     }
 
+       const mapOfficialToReadable = (off: any) => ({
+      "Position": off.Position || off.position,
+      "Term Start": off.TermStart || off.termStart,
+      "Term End": off.TermEnd !== undefined ? off.TermEnd : off.termEnd,
+      "Status": off.BStatus || off.bStatus
+    });
+
     //Audit log
     await AuditTrailRepository.log({
       userId,
       action: "UPDATE_OFFICIAL",
-      oldValue: JSON.stringify({ officialId, previous: existing }),
-      newValue: JSON.stringify({ officialId, ...data }),
+      oldValue: JSON.stringify(mapOfficialToReadable(existing)),
+      newValue: JSON.stringify(mapOfficialToReadable({
+         position: data.position ?? existing.Position,
+         termStart: data.termStart ?? existing.TermStart,
+         termEnd: data.termEnd !== undefined ? data.termEnd : existing.TermEnd,
+         bStatus: data.bStatus ?? existing.BStatus
+      })),
     });
 
     return true;

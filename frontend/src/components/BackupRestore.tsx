@@ -161,7 +161,7 @@ const BackupRestore: React.FC = () => {
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (!file.name.toLowerCase().endsWith(".sql")) {
+      if (!file.name.toLowerCase().endsWith(".enc")) {
         setErrorMessage("Invalid file type. Please select a .sql backup file.");
         return;
       }

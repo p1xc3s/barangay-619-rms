@@ -1,5 +1,6 @@
 import { FamilyRepository } from "./family.repository.js";
 import { AuditTrailRepository } from "../audit/audit.repository.js";
+import { ResidentRepository } from "../residents/resident.repository.js";
 
 export class FamilyService {
   private static getFamilyLabelFromIndex(index: number): string {
@@ -47,7 +48,8 @@ export class FamilyService {
     if (existingMembership.isMember) {
       throw {
         status: 400,
-        message: "Resident is already a member of another family. Remove them first before assigning as head.",
+        message:
+          "Resident is already a member of another family. Remove them first before assigning as head.",
       };
     }
 
@@ -105,18 +107,32 @@ export class FamilyService {
     if (existing.isHead) {
       throw {
         status: 400,
-        message: "Resident is already a family head and cannot be added as a member!",
+        message:
+          "Resident is already a family head and cannot be added as a member!",
       };
     }
 
     if (existing.isMember) {
-      // If already a member of the SAME family head, reject duplicate
+      // If already a member of the SAME family head, update the relationship instead of rejecting duplicate
       if (Number(existing.isMember.FamilyHeadID) === familyHeadId) {
-        throw {
-          status: 400,
-          message: "Resident is already a member of this family!",
-        };
+        await FamilyRepository.updateFamilyMemberRelationship(
+          familyHeadId,
+          residentId,
+          cleanedRelationship,
+        );
+
+        const oldRelationship = existing.isMember.RelationshipToFamilyHead;
+
+        await AuditTrailRepository.log({
+          userId,
+          action: "UPDATE_FAMILY_MEMBER_RELATIONSHIP",
+          oldValue: JSON.stringify({ Relationship: oldRelationship }),
+          newValue: JSON.stringify({ Relationship: cleanedRelationship }),
+        });
+
+        return; // Exit successfully after updating
       }
+
       // Remove from old family before adding to new one
       await FamilyRepository.removeFamilyMembership(
         residentId,
@@ -192,14 +208,20 @@ export class FamilyService {
       nextOldestResidentId,
     );
 
+    const oldHeadResident = await ResidentRepository.getResidentById(
+      currentHeadResidentId,
+    );
+    const newHeadResident =
+      await ResidentRepository.getResidentById(nextOldestResidentId);
+
     await AuditTrailRepository.log({
       userId,
       action: "CHANGE_FAMILY_HEAD",
+      oldValue: JSON.stringify({
+        "Family Head": `${oldHeadResident?.FirstName} ${oldHeadResident?.LastName}`,
+      }),
       newValue: JSON.stringify({
-        householdId,
-        currentHeadId,
-        previousHeadResidentId: currentHeadResidentId,
-        nextOldestResidentId,
+        "Family Head": `${newHeadResident?.FirstName} ${newHeadResident?.LastName}`,
       }),
     });
   }
@@ -238,13 +260,19 @@ export class FamilyService {
       nextOldestResidentId,
     );
 
+    const oldHeadResident =
+      await ResidentRepository.getResidentById(residentId);
+    const newHeadResident =
+      await ResidentRepository.getResidentById(nextOldestResidentId);
+
     await AuditTrailRepository.log({
       userId,
       action: "DEMOTE_FAMILY_HEAD",
+      oldValue: JSON.stringify({
+        "Family Head": `${oldHeadResident?.FirstName} ${oldHeadResident?.LastName}`,
+      }),
       newValue: JSON.stringify({
-        familyHeadId,
-        previousHeadResidentId: residentId,
-        nextOldestResidentId,
+        "Family Head": `${newHeadResident?.FirstName} ${newHeadResident?.LastName}`,
       }),
     });
   }
@@ -297,7 +325,8 @@ export class FamilyService {
     if (existingMembership.isMember) {
       throw {
         status: 400,
-        message: "Resident is already a member of another family. Remove them first before creating as head.",
+        message:
+          "Resident is already a member of another family. Remove them first before creating as head.",
       };
     }
 
@@ -377,18 +406,33 @@ export class FamilyService {
     if (existing.isHead) {
       throw {
         status: 400,
-        message: "Resident is already a family head and cannot be added as a member!",
+        message:
+          "Resident is already a family head and cannot be added as a member!",
       };
     }
 
     if (existing.isMember) {
-      // If already a member of the SAME family head, reject duplicate
+      // If already a member of the SAME family head, update the relationship instead of rejecting duplicate
       if (Number(existing.isMember.FamilyHeadID) === familyHeadId) {
-        throw {
-          status: 400,
-          message: "Resident is already a member of this family!",
-        };
+        await FamilyRepository.updateFamilyMemberRelationship(
+          familyHeadId,
+          residentId,
+          relationship,
+        );
+
+        await AuditTrailRepository.log({
+          userId,
+          action: "UPDATE_FAMILY_MEMBER_RELATIONSHIP",
+          newValue: JSON.stringify({
+            familyHeadId,
+            residentId,
+            relationship,
+          }),
+        });
+
+        return; // Exit successfully after updating
       }
+
       // Remove from old family before adding to new one
       await FamilyRepository.removeFamilyMembership(
         residentId,

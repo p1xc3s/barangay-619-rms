@@ -86,12 +86,14 @@ export class HouseholdService {
     if (!updated) {
       throw { status: 400, message: "No changes applied!" };
     }
+
     await AuditTrailRepository.log({
       userId,
       action: "UPDATE_HOUSEHOLD",
-      oldValue: JSON.stringify({ householdId }),
-      newValue: JSON.stringify(data),
+      oldValue: JSON.stringify({ "Address ID": existing.AddressID }),
+      newValue: JSON.stringify({ "Address ID": data.addressId }),
     });
+
     return true;
   }
 

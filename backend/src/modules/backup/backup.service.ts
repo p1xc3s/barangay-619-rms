@@ -5,6 +5,9 @@ import { exec } from "child_process";
 import { promisify } from "util";
 import path from "path";
 import fs from "fs";
+import crypto from "crypto";
+import zlib from "zlib";
+import { pipeline } from "stream/promises";
 
 const execAsync = promisify(exec);
 
@@ -19,63 +22,68 @@ const MYSQL_PATH = ENV.MYSQL_PATH;
 
 export class BackupService {
 
-    //Create full database backup (FR7, UC13)
+        //Create full database backup (FR7, UC13)
     static async createBackup(userId: number) {
-
-        //Ensure backup directory exists
         if (!fs.existsSync(BACKUP_DIR)) {
             fs.mkdirSync(BACKUP_DIR, { recursive: true });
         }
 
-        //Generate filename with timestamp
         const timestamp = new Date().toISOString().slice(0, 10).replace(/-/g, "");
         const time = new Date().toTimeString().slice(0, 8).replace(/:/g, "");
-        const fileName = `BRMS_FULL_${timestamp}_${time}.sql`;
-        const filePath = path.join(BACKUP_DIR, fileName);
+        
+        // We need a temporary SQL file, and the final ENC file
+        const sqlFileName = `BRMS_FULL_${timestamp}_${time}.sql`;
+        const encFileName = `BRMS_FULL_${timestamp}_${time}.enc`;
+        const sqlFilePath = path.join(BACKUP_DIR, sqlFileName);
+        const encFilePath = path.join(BACKUP_DIR, encFileName);
 
-        //Log as Pending first
         const backupId = await BackupRepository.create({
-            fileName,
+            fileName: encFileName, // Save the encrypted filename
             filePath: BACKUP_DIR,
             backupStatus: "Pending",
             backupType: "Backup"
         });
 
         try {
-            //Execute mysqldump using XAMPP path
+            // 1. Generate standard SQL Dump
             const passFlag = DB_PASS ? `-p${DB_PASS}` : "";
-            const cmd = `"${MYSQLDUMP_PATH}" -h ${DB_HOST} -u ${DB_USER} ${passFlag} ${DB_NAME} > "${filePath}"`;
-
+            const cmd = `"${MYSQLDUMP_PATH}" -h ${DB_HOST} -u ${DB_USER} ${passFlag} ${DB_NAME} > "${sqlFilePath}"`;
             await execAsync(cmd);
 
-            //Verify file was created
-            if (!fs.existsSync(filePath)) {
+            if (!fs.existsSync(sqlFilePath)) {
                 throw new Error("Backup file was not created!");
             }
 
-            //Update status to Successful
-            await BackupRepository.updateStatus(backupId, "Successful");
+            // 2. Compress and Encrypt the file
+            const key = Buffer.from(ENV.BACKUP_ENCRYPTION_KEY, 'utf-8');
+            const iv = Buffer.from(ENV.BACKUP_ENCRYPTION_IV, 'utf-8');
+            
+            await pipeline(
+                fs.createReadStream(sqlFilePath),
+                zlib.createGzip(),
+                crypto.createCipheriv('aes-256-cbc', key, iv),
+                fs.createWriteStream(encFilePath)
+            );
 
-            //Audit log
+            // 3. Delete the plain-text SQL file
+            fs.unlinkSync(sqlFilePath);
+
+            await BackupRepository.updateStatus(backupId, "Successful");
             await AuditTrailRepository.log({
                 userId,
                 action: "CREATE_BACKUP",
-                newValue: JSON.stringify({ backupId, fileName, filePath: BACKUP_DIR })
+                newValue: JSON.stringify({ backupId, fileName: encFileName, filePath: BACKUP_DIR })
             });
 
-            return { backupId, fileName, filePath: BACKUP_DIR };
+            return { backupId, fileName: encFileName, filePath: BACKUP_DIR };
 
         } catch (error: any) {
-            //Update status to Failed
             await BackupRepository.updateStatus(backupId, "Failed");
-
-            //Audit log failure
             await AuditTrailRepository.log({
                 userId,
                 action: "BACKUP_FAILED",
                 newValue: JSON.stringify({ backupId, error: error.message })
             });
-
             throw { status: 500, message: `Backup failed: ${error.message}` };
         }
     }
@@ -127,18 +135,12 @@ export class BackupService {
         }
     }
 
-    //Restore database from uploaded .sql file (FR7, UC13)
+        //Restore database from uploaded .enc file (FR7, UC13)
     static async restoreBackup(uploadedFilePath: string, originalFileName: string, userId: number) {
-
-        //Validate file exists
         if (!fs.existsSync(uploadedFilePath)) {
             throw { status: 400, message: "Backup file not found on the server!" };
         }
 
-        //Validate backup file content before restoring
-        this.validateBackupContent(uploadedFilePath);
-
-        //Log as Pending
         const backupId = await BackupRepository.create({
             fileName: originalFileName,
             filePath: uploadedFilePath,
@@ -146,17 +148,36 @@ export class BackupService {
             backupType: "Restore"
         });
 
-        try {
-            //Execute restore via XAMPP mysql CLI
-            const passFlag = DB_PASS ? `-p${DB_PASS}` : "";
-            const cmd = `"${MYSQL_PATH}" -h ${DB_HOST} -u ${DB_USER} ${passFlag} ${DB_NAME} < "${uploadedFilePath}"`;
+        const tempSqlPath = `${uploadedFilePath}.temp.sql`;
 
+        try {
+            // 1. Decrypt and Decompress the uploaded file to a temporary SQL file
+            const key = Buffer.from(ENV.BACKUP_ENCRYPTION_KEY, 'utf-8');
+            const iv = Buffer.from(ENV.BACKUP_ENCRYPTION_IV, 'utf-8');
+
+            try {
+                await pipeline(
+                    fs.createReadStream(uploadedFilePath),
+                    crypto.createDecipheriv('aes-256-cbc', key, iv),
+                    zlib.createGunzip(),
+                    fs.createWriteStream(tempSqlPath)
+                );
+            } catch (err) {
+                throw new Error("Failed to decrypt backup. Invalid file or wrong encryption key.");
+            }
+
+            // 2. Validate the decrypted SQL content
+            this.validateBackupContent(tempSqlPath);
+
+            // 3. Import the decrypted SQL file
+            const passFlag = DB_PASS ? `-p${DB_PASS}` : "";
+            const cmd = `"${MYSQL_PATH}" -h ${DB_HOST} -u ${DB_USER} ${passFlag} ${DB_NAME} < "${tempSqlPath}"`;
             await execAsync(cmd);
 
-            //Update status to Successful
-            await BackupRepository.updateStatus(backupId, "Successful");
+            // 4. Clean up the temporary plain-text SQL file
+            fs.unlinkSync(tempSqlPath);
 
-            //Audit log
+            await BackupRepository.updateStatus(backupId, "Successful");
             await AuditTrailRepository.log({
                 userId,
                 action: "RESTORE_BACKUP",
@@ -166,10 +187,12 @@ export class BackupService {
             return { backupId, message: "Database restored successfully!" };
 
         } catch (error: any) {
-            //Update status to Failed
-            await BackupRepository.updateStatus(backupId, "Failed");
+            // Ensure temp file is deleted even if restore fails
+            if (fs.existsSync(tempSqlPath)) {
+                fs.unlinkSync(tempSqlPath);
+            }
 
-            //Audit log failure
+            await BackupRepository.updateStatus(backupId, "Failed");
             await AuditTrailRepository.log({
                 userId,
                 action: "RESTORE_FAILED",

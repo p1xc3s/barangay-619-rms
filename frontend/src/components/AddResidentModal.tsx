@@ -89,21 +89,12 @@ const citizenships = [
 
 const familyRoles = [
   "Spouse",
-  "Son",
-  "Daughter",
-  "Father",
-  "Mother",
-  "Brother",
-  "Sister",
-  "Grandson",
-  "Granddaughter",
-  "Grandparent",
-  "Nephew",
-  "Niece",
-  "In-law",
+  "Child",
+  "Parent",
+  "Sibling",
   "Relative",
   "Househelp",
-  "Other",
+  "Others",
 ];
 
 const educationLevels = [

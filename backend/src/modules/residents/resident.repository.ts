@@ -180,12 +180,25 @@ export class ResidentRepository {
 
         if (directCheck.length > 0) {
           householdId = data.householdId;
+
+          // Update the Household to point to the new specific Address
+          await conn.query(
+            `UPDATE Household SET AddressID = ? WHERE HouseholdID = ?`,
+            [addressId, householdId],
+          );
         } else {
           // It might be a HouseID from HouseholdNumber - resolve it
           try {
             householdId = await HouseholdRepository.resolveOrCreateHousehold(
               conn,
               data.householdId,
+            );
+            
+            // ---> THE MISSING FIX <---
+            // We just created the Household, now we MUST point it to the new specific Address!
+            await conn.query(
+              `UPDATE Household SET AddressID = ? WHERE HouseholdID = ?`,
+              [addressId, householdId]
             );
           } catch {
             // If resolution fails, throw a clear error
@@ -566,6 +579,64 @@ export class ResidentRepository {
           id,
         ],
       );
+
+      // Sync Address fields if provided
+      if (data.address) {
+        // Find the AddressID linked to this resident's household
+        const addressRows = await conn.query(
+          `SELECT h.AddressID, h.HouseholdID FROM Household h 
+           JOIN Resident r ON r.HouseholdID = h.HouseholdID 
+           WHERE r.ResidentID = ?`,
+          [id]
+        );
+
+        if (addressRows.length > 0 && addressRows[0].AddressID) {
+          const currentAddressId = addressRows[0].AddressID;
+          const targetHouseholdId = addressRows[0].HouseholdID;
+
+          // AddressID 1, 2, and 3 are the base streets, we don't want to overwrite them!
+          if (currentAddressId > 3) {
+            // It's a specific address, safe to overwrite
+            await conn.query(
+              `UPDATE Address SET 
+                Unit_RoomNo_Floor = ?, 
+                Building_Name = ?, 
+                Lot_Block_Phase_Num = ?
+               WHERE AddressID = ?`,
+              [
+                data.address.unitRoomFloor || null,
+                data.address.buildingName || null,
+                data.address.lotBlockPhase || null,
+                currentAddressId
+              ]
+            );
+          } else {
+            // The household is still stuck on the blank template street!
+            // We must create a brand new specific address and switch the household to it.
+            const newAddressResult = await conn.query(
+              `INSERT INTO Address (
+                Unit_RoomNo_Floor, Building_Name, Lot_Block_Phase_Num, 
+                HouseNumber, Street_Alley_Zone, Barangay, Municipality
+              ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+              [
+                data.address.unitRoomFloor || null,
+                data.address.buildingName || null,
+                data.address.lotBlockPhase || null,
+                data.address.houseNumber || "",
+                data.address.street || "",
+                data.address.barangay || "Barangay 619",
+                data.address.municipality || "Manila"
+              ]
+            );
+
+            // Link the household to the new specific address
+            await conn.query(
+              `UPDATE Household SET AddressID = ? WHERE HouseholdID = ?`,
+              [newAddressResult.insertId, targetHouseholdId]
+            );
+          }
+        }
+      }
 
       let categoriesSynced = false;
       let educationSynced = false;
