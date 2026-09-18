@@ -4,6 +4,19 @@ import { FamilyService } from "../family/family.service.js";
 import { HouseholdRepository } from "../households/household.repository.js";
 
 export class ResidentController {
+  static async checkDuplicate(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { firstName, lastName, middleName, dob } = req.body;
+      if (!firstName || !lastName || !dob) {
+        return res.status(400).json({ success: false, message: "Missing required fields" });
+      }
+      const isDuplicate = await ResidentService.checkDuplicate(firstName, lastName, middleName, dob);
+      res.json({ success: true, isDuplicate });
+    } catch (err) {
+      next(err);
+    }
+  }
+
   static async createResident(req: Request, res: Response, next: NextFunction) {
     try {
       const userId = req.user!.userId;

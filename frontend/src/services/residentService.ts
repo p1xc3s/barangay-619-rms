@@ -31,6 +31,15 @@ export interface UpdateResidentData {
   householdRole?: "head" | "member";
   occupancyStatus?: "Owner" | "Renter" | "Sharer" | "Boarder";
   householdId?: number;
+  address?: {
+    unitRoomFloor?: string;
+    buildingName?: string;
+    lotBlockPhase?: string;
+    houseNumber?: string;
+    street?: string;
+    barangay?: string;
+    municipality?: string;
+  };
 }
 
 export interface ResidentSearchFilters {
@@ -44,6 +53,17 @@ export interface ResidentSearchFilters {
 }
 
 export const residentService = {
+  /** Check for duplicate resident before creating */
+  async checkDuplicate(firstName: string, lastName: string, middleName: string | undefined, dob: string): Promise<boolean> {
+    const response = await api.post("/residents/check-duplicate", {
+      firstName,
+      lastName,
+      middleName,
+      dob,
+    });
+    return response.data.isDuplicate;
+  },
+
   /** Fetch all active residents (slim list for the table) */
   async getAll(): Promise<ResidentListItem[]> {
     const response = await api.get("/residents");

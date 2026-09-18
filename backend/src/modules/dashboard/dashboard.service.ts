@@ -3,7 +3,7 @@ import { DashboardRepository } from "./dashboard.repository.js";
 export class DashboardService {
 
     //Get all dashboard statistics in one call
-    static async getDashboardStats() {
+    static async getDashboardStats(dateFilter?: string) {
 
         //Fetch all stats in parallel for performance
         const [
@@ -19,14 +19,14 @@ export class DashboardService {
             movedOut,
             deceased
         ] = await Promise.all([
-            DashboardRepository.getTotalPopulation(),
-            DashboardRepository.getRegisteredVoters(),
-            DashboardRepository.getGenderCount(),
-            DashboardRepository.getTotalHouseholds(),
-            DashboardRepository.getTotalFamilies(),
-            DashboardRepository.getAgeClassification(),
-            DashboardRepository.getPWDCount(),
-            DashboardRepository.getEmploymentCount(),
+            DashboardRepository.getTotalPopulation(dateFilter),
+            DashboardRepository.getRegisteredVoters(dateFilter),
+            DashboardRepository.getGenderCount(dateFilter),
+            DashboardRepository.getTotalHouseholds(dateFilter),
+            DashboardRepository.getTotalFamilies(dateFilter),
+            DashboardRepository.getAgeClassification(dateFilter),
+            DashboardRepository.getPWDCount(dateFilter),
+            DashboardRepository.getEmploymentCount(dateFilter),
             DashboardRepository.getNewResidents(),
             DashboardRepository.getMovedOutResidents(),
             DashboardRepository.getDeceasedResidents()

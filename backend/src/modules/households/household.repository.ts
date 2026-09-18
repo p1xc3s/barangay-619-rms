@@ -18,7 +18,7 @@ const toNumber = (value: unknown): number => {
 };
 
 export class HouseholdRepository {
-  static async createHousehold(data: { addressId: number }) {
+  static async createHousehold(data?: any) {
     const conn = await pool.getConnection();
 
     try {
@@ -26,9 +26,9 @@ export class HouseholdRepository {
 
       // Find available household number
       const houseRows = await conn.query(
-        `SELECT HouseID FROM HouseholdNumber
-       WHERE Status = 'Available'
-       LIMIT 1`,
+        `SELECT HouseID, StreetName FROM HouseholdNumber
+         WHERE Status = 'Available'
+         LIMIT 1`,
       );
 
       if (houseRows.length === 0) {
@@ -37,11 +37,12 @@ export class HouseholdRepository {
 
       const houseId = houseRows[0].HouseID;
 
-      // Create household
+      // Create household with a NULL AddressID initially
+      // The specific Address row will be created on-demand when a Resident is added
       const result = await conn.query(
         `INSERT INTO Household (HouseID, AddressID)
-       VALUES (?, ?)`,
-        [houseId, data.addressId],
+         VALUES (?, NULL)`,
+        [houseId],
       );
 
       // Mark household number as assigned
@@ -159,13 +160,17 @@ export class HouseholdRepository {
           a.HouseNumber,
           a.Street_Alley_Zone,
           a.Barangay,
+          a.Unit_RoomNo_Floor,
+          a.Building_Name,
+          a.Lot_Block_Phase_Num,
+          a.Municipality,
           (SELECT COUNT(*) FROM Resident r WHERE r.HouseholdID = h.HouseholdID AND r.ResidentStatus = 'Active')
             AS memberCount,
             (SELECT COUNT(*) FROM FamilyHead fh WHERE fh.HouseholdID = h.HouseholdID AND fh.HeadType = 'Primary')
             AS familyCount
             FROM Household h
           JOIN HouseholdNumber hn ON h.HouseID = hn.HouseID
-          JOIN Address a ON h.AddressID = a.AddressID
+          LEFT JOIN Address a ON h.AddressID = a.AddressID
           ORDER BY h.HouseholdID`,
       );
 
@@ -255,22 +260,12 @@ export class HouseholdRepository {
       return toNumber(existing[0].HouseholdID);
     }
 
-    // Get address from HouseholdNumber
-    const hnRows = await conn.query(
-      `SELECT AddressID FROM HouseholdNumber WHERE HouseID = ? LIMIT 1`,
-      [houseId],
-    );
-
-    if (hnRows.length === 0 || !hnRows[0].AddressID) {
-      throw { status: 400, message: "Household number not found or has no address!" };
-    }
-
-    const addressId = toNumber(hnRows[0].AddressID);
-
-    // Create Household row
+    // We no longer query the street or create the Address row here.
+    // We just create the Household row with a NULL AddressID.
+    // The Address row will be created when a Resident is added.
     const result = await conn.query(
-      `INSERT INTO Household (HouseID, AddressID) VALUES (?, ?)`,
-      [houseId, addressId],
+      `INSERT INTO Household (HouseID, AddressID) VALUES (?, NULL)`,
+      [houseId],
     );
 
     // Mark household number as Assigned
@@ -310,19 +305,13 @@ export class HouseholdRepository {
           hn.HouseID,
           hn.HouseholdNumberName,
           hn.Status,
-          hn.AddressID,
-          a.HouseNumber,
-          a.Street_Alley_Zone,
-          a.Barangay,
-          a.Municipality
+          hn.StreetName
          FROM HouseholdNumber hn
-         LEFT JOIN Address a ON hn.AddressID = a.AddressID
          ORDER BY hn.HouseID`,
       );
       return rows.map((row: any) => ({
         ...row,
-        HouseID: toNumber(row.HouseID),
-        AddressID: row.AddressID == null ? null : toNumber(row.AddressID),
+        HouseID: toNumber(row.HouseID)
       }));
     } finally {
       conn.release();
@@ -330,13 +319,15 @@ export class HouseholdRepository {
   }
   static async createHouseholdNumber(data: {
     householdNumberName: string;
-    addressId?: number;
+    streetName: string;
   }) {
     const conn = await pool.getConnection();
+
     try {
       const result = await conn.query(
-        `INSERT INTO HouseholdNumber (HouseholdNumberName, AddressID, Status) VALUES (?, ?, 'Available')`,
-        [data.householdNumberName, data.addressId ?? null],
+        `INSERT INTO HouseholdNumber (HouseholdNumberName, StreetName)
+         VALUES (?, ?)`,
+        [data.householdNumberName, data.streetName],
       );
       return Number(result.insertId);
     } catch (err: any) {

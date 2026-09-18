@@ -129,26 +129,16 @@ export class HouseholdService {
   }
 
   static async createHouseholdNumber(
-    data: { householdNumberName: string; addressId?: number },
+    data: { householdNumberName: string; streetName: string },
     userId: number,
   ) {
-    if (!data.householdNumberName) {
-      throw { status: 400, message: "Household number name is required!" };
+    if (!data.householdNumberName || !data.streetName) {
+      throw { status: 400, message: "Household number name and streetName are required!" };
     }
 
-    const addressId = Number(data.addressId);
-    if (!Number.isInteger(addressId) || addressId <= 0) {
-      throw { status: 400, message: "Valid addressId is required!" };
-    }
-
-    // Validate that the address exists and belongs to allowed streets
     const allowedStreets = ["Batas", "Katwiran", "Lubiran"];
-    const address = await HouseholdRepository.getAddressById(addressId);
-    if (!address) {
-      throw { status: 400, message: "Invalid addressId!" };
-    }
-
-    const street = (address.Street_Alley_Zone || "").trim();
+    const street = data.streetName.trim();
+    
     if (!allowedStreets.includes(street)) {
       throw {
         status: 400,
@@ -156,12 +146,17 @@ export class HouseholdService {
       };
     }
 
-    const houseId = await HouseholdRepository.createHouseholdNumber(data);
+    const houseId = await HouseholdRepository.createHouseholdNumber({
+       householdNumberName: data.householdNumberName,
+       streetName: street,
+    });
+    
     await AuditTrailRepository.log({
       userId,
       action: "CREATE_HOUSEHOLD_NUMBER",
       newValue: JSON.stringify({ houseId, ...data }),
     });
+    
     return houseId;
   }
 }

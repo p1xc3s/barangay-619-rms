@@ -57,7 +57,7 @@ export const householdService = {
   /** Create a new household number (Admin only) */
   async createNumber(data: {
     householdNumberName: string;
-    addressId: number;
+    streetName: string;
   }): Promise<{ houseId: number }> {
     const response = await api.post("/household-numbers", data);
     broadcastHouseholdDataUpdated();

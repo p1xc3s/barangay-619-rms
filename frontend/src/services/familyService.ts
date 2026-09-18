@@ -18,6 +18,11 @@ export const familyService = {
       LastName: string;
       HouseholdNumber: string;
       Street_Alley_Zone: string;
+      Unit_RoomNo_Floor?: string;
+      Building_Name?: string;
+      Lot_Block_Phase_Num?: string;
+      Barangay?: string;
+      Municipality?: string;
       FamilyLabel?: string | null;
     }> = response.data.data;
 
@@ -27,6 +32,11 @@ export const familyService = {
       householdId: Number(head.HouseholdID),
       householdNumber: head.HouseholdNumber,
       street: head.Street_Alley_Zone,
+      unitRoom: head.Unit_RoomNo_Floor,
+      building: head.Building_Name,
+      lotBlock: head.Lot_Block_Phase_Num,
+      barangay: head.Barangay,
+      city: head.Municipality,
       familyLabel: head.FamilyLabel || "Family",
     }));
   },

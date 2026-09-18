@@ -272,7 +272,7 @@ const ResidentProfileModal: React.FC<ResidentProfileModalProps> = ({
       setIsEditing(false);
       setTabValue(0);
     }
-  }, [open, residentId, fetchHouseholds]);
+  }, [open, residentId, fetchHouseholds, fetchFamilyHeads]);
 
   const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);
@@ -352,7 +352,19 @@ const ResidentProfileModal: React.FC<ResidentProfileModalProps> = ({
         householdId:
           formData.householdRole === "head" && formData.householdId
             ? Number(formData.householdId)
-            : undefined,
+            : formData.householdRole === "member" && formData.familyHeadId
+              ? familyHeadOptions.find((h) => h.id === formData.familyHeadId)
+                  ?.householdId
+              : undefined,
+        address: {
+          unitRoomFloor: formData.unitRoom || undefined,
+          buildingName: formData.building || undefined,
+          lotBlockPhase: formData.lotBlock || undefined,
+          houseNumber: formData.householdNumber || undefined,
+          street: formData.street || undefined,
+          barangay: formData.barangay || undefined,
+          municipality: formData.city || undefined,
+        },
       });
 
       if (nextIsHead && nextHouseholdId) {
@@ -949,10 +961,18 @@ const ResidentProfileModal: React.FC<ResidentProfileModalProps> = ({
                   {tabValue === 1 && (
                     <Grid container spacing={4}>
                       <Grid size={{ xs: 12 }}>
-                        <SectionTitle icon={MapPin} title="Current Address" />
+                        <SectionTitle
+                          icon={FileBadge}
+                          title="Household Setup"
+                        />
                         <Grid container spacing={3}>
-                          <Grid size={{ xs: 12, md: 2 }}>
-                            {renderField("Unit/Room No.", "unitRoom")}
+                          <Grid size={{ xs: 12, md: 3 }}>
+                            {renderField(
+                              "Role in Family",
+                              "householdRole",
+                              "select",
+                              ["head", "member"],
+                            )}
                           </Grid>
                           <Grid size={{ xs: 12, md: 3 }}>
                             {renderField("Building Name", "building")}
@@ -975,18 +995,10 @@ const ResidentProfileModal: React.FC<ResidentProfileModalProps> = ({
                         <Divider />
                       </Grid>
                       <Grid size={{ xs: 12 }}>
-                        <SectionTitle
-                          icon={FileBadge}
-                          title="Household Setup"
-                        />
+                        <SectionTitle icon={MapPin} title="Current Address" />
                         <Grid container spacing={3}>
-                          <Grid size={{ xs: 12, md: 3 }}>
-                            {renderField(
-                              "Role in Family",
-                              "householdRole",
-                              "select",
-                              ["head", "member"],
-                            )}
+                          <Grid size={{ xs: 12, md: 2 }}>
+                            {renderField("Unit/Room No.", "unitRoom")}
                           </Grid>
 
                           {formData.householdRole === "head" ? (

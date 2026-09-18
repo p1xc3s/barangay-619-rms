@@ -63,7 +63,6 @@ import SortOrderToggle, { type SortOrder } from "./SortOrderToggle";
 import type {
   ResidentListItem,
   HouseholdListItem,
-  HouseholdAddressOption,
   HouseholdNumber,
   FamilyRecord,
   CreateResidentData,
@@ -185,12 +184,11 @@ const ResidentRecords: React.FC = () => {
   const [householdNumbers, setHouseholdNumbers] = useState<HouseholdNumber[]>(
     [],
   );
-  const [householdAddressOptions, setHouseholdAddressOptions] = useState<
-    HouseholdAddressOption[]
-  >([]);
+
   const [isHouseholdsLoading, setIsHouseholdsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("All");
+  const [selectedStreetFilter, setSelectedStreetFilter] = useState<string>("All");
   const [page, setPage] = useState(1);
   const [mainSortOrder, setMainSortOrder] = useState<SortOrder>("desc");
   const rowsPerPage = 10;
@@ -287,14 +285,6 @@ const ResidentRecords: React.FC = () => {
     }
   }, []);
 
-  const fetchHouseholdAddresses = useCallback(async () => {
-    try {
-      const data = await householdService.getAllAddresses();
-      setHouseholdAddressOptions(data);
-    } catch {
-      notify.error("Failed to load household addresses.");
-    }
-  }, []);
 
   const loadHouseholdData = useCallback(async () => {
     setIsHouseholdsLoading(true);
@@ -302,12 +292,11 @@ const ResidentRecords: React.FC = () => {
       await Promise.all([
         fetchHouseholds(),
         fetchHouseholdNumbers(),
-        fetchHouseholdAddresses(),
       ]);
     } finally {
       setIsHouseholdsLoading(false);
     }
-  }, [fetchHouseholds, fetchHouseholdNumbers, fetchHouseholdAddresses]);
+  }, [fetchHouseholds, fetchHouseholdNumbers]);
 
   useHouseholdDataRefresh(loadHouseholdData);
 
@@ -520,6 +509,10 @@ const ResidentRecords: React.FC = () => {
       return;
     }
 
+    if (!window.confirm(`Are you sure you want to proceed with archiving ${residentToArchive.FirstName} ${residentToArchive.LastName} as ${archiveStatus}?`)) {
+      return;
+    }
+
     const normalizedStatus: "MovedOut" | "Deceased" =
       archiveStatus === "Moved Out" ? "MovedOut" : "Deceased";
 
@@ -575,19 +568,10 @@ const ResidentRecords: React.FC = () => {
       return;
     }
 
-    const matchedAddress = householdAddressOptions.find(
-      (a) => (a.Street_Alley_Zone || "").trim() === selectedStreet,
-    );
-
-    if (!matchedAddress) {
-      notify.error("Selected street could not be resolved to an address.");
-      return;
-    }
-
     try {
       await householdService.createNumber({
         householdNumberName: trimmedHouseholdNumber,
-        addressId: matchedAddress.AddressID,
+        streetName: selectedStreet,
       });
 
       notify.success("Household number created successfully!");
@@ -753,7 +737,7 @@ const ResidentRecords: React.FC = () => {
         householdNumber: householdNumber.HouseholdNumberName,
         householdStatus: householdNumber.Status,
         Street_Alley_Zone:
-          householdNumber.Street_Alley_Zone ||
+          householdNumber.StreetName ||
           assignedHousehold?.Street_Alley_Zone ||
           "—",
         Barangay: assignedHousehold?.Barangay || "Barangay 619",
@@ -770,10 +754,16 @@ const ResidentRecords: React.FC = () => {
   }, []);
 
   const filteredHouseholds = householdRegistryRows.filter(
-    (h) =>
-      h.householdNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      h.Street_Alley_Zone.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      h.householdStatus.toLowerCase().includes(searchQuery.toLowerCase()),
+    (h) => {
+      const matchesSearch =
+        h.householdNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        h.Street_Alley_Zone.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        h.householdStatus.toLowerCase().includes(searchQuery.toLowerCase());
+      
+      const matchesStreet = selectedStreetFilter === "All" || h.Street_Alley_Zone === selectedStreetFilter;
+
+      return matchesSearch && matchesStreet;
+    }
   );
 
   const residentTotalPages = Math.max(
@@ -1184,6 +1174,34 @@ const ResidentRecords: React.FC = () => {
                 : `Filtering: ${selectedCategory}`}
             </Button>
           )}
+          
+          {activeTab === 1 && (
+            <Select
+              value={selectedStreetFilter}
+              onChange={(e) => {
+                setSelectedStreetFilter(e.target.value);
+                setPage(1);
+              }}
+              size="small"
+              displayEmpty
+              sx={{
+                width: 200,
+                borderRadius: 2.5,
+                bgcolor: "#f9fafb",
+                "& .MuiOutlinedInput-notchedOutline": {
+                  borderColor: "#e5e7eb",
+                },
+              }}
+            >
+              <MenuItem value="All">All Streets</MenuItem>
+              {streetOptions.map((street) => (
+                <MenuItem key={street} value={street}>
+                  {street}
+                </MenuItem>
+              ))}
+            </Select>
+          )}
+
           <Menu
             anchorEl={filterAnchorEl}
             open={Boolean(filterAnchorEl)}
@@ -1524,14 +1542,22 @@ const ResidentRecords: React.FC = () => {
         onSave={handleSaveResident}
         initialHeadId={preselectedHeadId}
         initialHouseholdId={preselectedHouseholdId}
-        householdOptions={householdNumbers.map((householdNumber) => ({
-          id: String(householdNumber.HouseID),
-          number: householdNumber.HouseholdNumberName,
-          street:
-            householdNumber.Street_Alley_Zone ||
-            householdNumber.HouseNumber ||
-            "",
-        }))}
+        householdOptions={householdNumbers.map((householdNumber) => {
+          const matchedHousehold = households.find(
+            (h) => h.householdNumber === householdNumber.HouseholdNumberName && h.HouseNumber
+          );
+          return {
+            id: String(householdNumber.HouseID),
+            number: householdNumber.HouseholdNumberName,
+            street: matchedHousehold?.Street_Alley_Zone || householdNumber.StreetName || "",
+            unitRoom: matchedHousehold?.Unit_RoomNo_Floor || "",
+            building: matchedHousehold?.Building_Name || "",
+            lotBlock: matchedHousehold?.Lot_Block_Phase_Num || "",
+            barangay: matchedHousehold?.Barangay || "",
+            city: matchedHousehold?.Municipality || "",
+            hasAddress: !!matchedHousehold?.HouseNumber,
+          };
+        })}
         familyHeadOptions={memoizedFamilyHeadOptions}
       />
       <ResidentProfileModal

@@ -115,6 +115,9 @@ const BackupRestore: React.FC = () => {
   };
 
   const handleStartBackup = async () => {
+    if (!window.confirm("Are you sure you want to proceed with creating a system backup?")) {
+      return;
+    }
     setIsBackupDialogOpen(false);
     setIsProgressDialogOpen(true);
     setProgress(25);
@@ -174,6 +177,10 @@ const BackupRestore: React.FC = () => {
   const handleStartRestore = async () => {
     if (!selectedFile) {
       setErrorMessage("No backup file selected.");
+      return;
+    }
+
+    if (!window.confirm("Are you sure you want to proceed with restoring the database? This action will overwrite existing data.")) {
       return;
     }
 

@@ -145,11 +145,15 @@ export interface HouseholdListItem {
   HouseholdID: number;
   householdNumber: string;
   householdStatus: string;
-  HouseNumber: string;
-  Street_Alley_Zone: string;
-  Barangay: string;
+  HouseNumber?: string;
+  Street_Alley_Zone?: string;
+  Barangay?: string;
+  Unit_RoomNo_Floor?: string;
+  Building_Name?: string;
+  Lot_Block_Phase_Num?: string;
+  Municipality?: string;
   memberCount: number;
-  familyCount?: number;
+  familyCount: number;
 }
 
 /** Shape returned by GET /api/households/:id */
@@ -175,11 +179,7 @@ export interface HouseholdNumber {
   HouseID: number;
   HouseholdNumberName: string;
   Status: string;
-  AddressID?: number | null;
-  HouseNumber?: string | null;
-  Street_Alley_Zone?: string | null;
-  Barangay?: string | null;
-  Municipality?: string | null;
+  StreetName?: string | null;
 }
 
 export interface HouseholdAddressOption {
@@ -208,6 +208,11 @@ export interface FamilyHeadOption {
   householdId: number;
   householdNumber: string;
   street: string;
+  unitRoom?: string;
+  building?: string;
+  lotBlock?: string;
+  barangay?: string;
+  city?: string;
   familyLabel: string;
 }
 

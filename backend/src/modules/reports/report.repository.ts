@@ -198,7 +198,7 @@ export class ReportRepository {
                 TIMESTAMPDIFF(YEAR, r.DateOfBirth, CURDATE()) as Age,
                 r.Sex, r.CivilStatus, r.Citizenship,
                 hn.HouseholdNumberName as Household,
-                a.Street_Alley_Zone as Street`;
+                hn.StreetName as Street`;
 
       const baseJoins = `FROM Resident r
                 LEFT JOIN Household h ON r.HouseholdID = h.HouseholdID
@@ -362,7 +362,7 @@ export class ReportRepository {
                 r.Sex, r.CivilStatus, r.Citizenship,
                 e.Occupation,
                 hn.HouseholdNumberName as Household,
-                a.Street_Alley_Zone as Street,
+                hn.StreetName as Street,
                 a.Barangay,
                 GROUP_CONCAT(sc.CategoryName SEPARATOR ', ') as Categories
             ${baseFrom}

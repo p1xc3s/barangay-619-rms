@@ -16,7 +16,7 @@ const toNumber = (value: unknown): number => {
 export class DashboardRepository {
   // STAT CARDS - Matches the 6 StatCard components
   //Total active population
-  static async getTotalPopulation(): Promise<number> {
+  static async getTotalPopulation(filterDate?: string): Promise<number> {
     const conn = await pool.getConnection();
     try {
       const rows = await conn.query(
@@ -29,7 +29,7 @@ export class DashboardRepository {
   }
 
   //Registered voters (from Voter table joined with active residents)
-  static async getRegisteredVoters(): Promise<number> {
+  static async getRegisteredVoters(filterDate?: string): Promise<number> {
     const conn = await pool.getConnection();
     try {
       const rows = await conn.query(
@@ -44,7 +44,7 @@ export class DashboardRepository {
   }
 
   //Gender count (Male/Female)
-  static async getGenderCount(): Promise<{ male: number; female: number }> {
+  static async getGenderCount(filterDate?: string): Promise<{ male: number; female: number }> {
     const conn = await pool.getConnection();
     try {
       const rows = await conn.query(
@@ -65,10 +65,13 @@ export class DashboardRepository {
   }
 
   //Total households
-  static async getTotalHouseholds(): Promise<number> {
+  static async getTotalHouseholds(filterDate?: string): Promise<number> {
     const conn = await pool.getConnection();
     try {
-      const rows = await conn.query(`SELECT COUNT(*) as count FROM Household`);
+      const rows = await conn.query(
+        `SELECT COUNT(*) as count FROM Household ${filterDate ? 'WHERE CreatedAt <= LAST_DAY(CONCAT(?, \'-01\')) + INTERVAL 1 DAY - INTERVAL 1 SECOND' : ''}`,
+        filterDate ? [filterDate] : []
+      );
       return toNumber(rows[0]?.count);
     } finally {
       conn.release();
@@ -76,10 +79,13 @@ export class DashboardRepository {
   }
 
   //Total families (count of family heads)
-  static async getTotalFamilies(): Promise<number> {
+  static async getTotalFamilies(filterDate?: string): Promise<number> {
     const conn = await pool.getConnection();
     try {
-      const rows = await conn.query(`SELECT COUNT(*) as count FROM FamilyHead`);
+      const rows = await conn.query(
+        `SELECT COUNT(*) as count FROM FamilyHead ${filterDate ? 'WHERE CreatedAt <= LAST_DAY(CONCAT(?, \'-01\')) + INTERVAL 1 DAY - INTERVAL 1 SECOND' : ''}`,
+        filterDate ? [filterDate] : []
+      );
       return toNumber(rows[0]?.count);
     } finally {
       conn.release();
@@ -88,7 +94,7 @@ export class DashboardRepository {
 
   // PIE CHART - "Resident Classification" categories
   //Age-based classifications (Children, Youth, Senior)
-  static async getAgeClassification(): Promise<{
+  static async getAgeClassification(filterDate?: string): Promise<{
     children: number;
     youth: number;
     seniorCitizen: number;
@@ -114,7 +120,7 @@ export class DashboardRepository {
   }
 
   //PWD count (from ResidentCategory + SpecialCategory)
-  static async getPWDCount(): Promise<number> {
+  static async getPWDCount(filterDate?: string): Promise<number> {
     const conn = await pool.getConnection();
     try {
       const rows = await conn.query(
@@ -131,7 +137,7 @@ export class DashboardRepository {
   }
 
   //Employment count
-  static async getEmploymentCount(): Promise<{
+  static async getEmploymentCount(filterDate?: string): Promise<{
     employed: number;
     unemployed: number;
   }> {

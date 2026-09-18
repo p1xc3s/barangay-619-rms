@@ -93,12 +93,13 @@ export class FamilyRepository {
            r.ResidentID AS ResidentID,
            CONCAT_WS(' ', r.FirstName, r.MiddleName, r.LastName) AS Name,
            hh.HouseholdID AS HouseholdID,
-           hh.HouseholdNumber AS HouseholdNumber,
-           hh.Street_Alley_Zone AS Street,
+           hn.HouseholdNumberName AS HouseholdNumber,
+           hn.StreetName AS Street,
            fh.FamilyLabel AS FamilyLabel
          FROM FamilyHead fh
          JOIN Resident r ON r.ResidentID = fh.ResidentID
          JOIN Household hh ON hh.HouseholdID = fh.HouseholdID
+         JOIN HouseholdNumber hn ON hn.HouseID = hh.HouseID
          WHERE fh.HouseholdID = ?
          ORDER BY fh.FamilyLabel`,
         [householdId],
@@ -353,12 +354,17 @@ export class FamilyRepository {
            r.FirstName,
            r.LastName,
            hn.HouseholdNumberName AS HouseholdNumber,
-           a.Street_Alley_Zone
+           hn.StreetName AS Street_Alley_Zone,
+           a.Unit_RoomNo_Floor,
+           a.Building_Name,
+           a.Lot_Block_Phase_Num,
+           a.Barangay,
+           a.Municipality
          FROM FamilyHead fh
          JOIN Resident r ON fh.ResidentID = r.ResidentID
          JOIN Household h ON fh.HouseholdID = h.HouseholdID
          JOIN HouseholdNumber hn ON h.HouseID = hn.HouseID
-         JOIN Address a ON h.AddressID = a.AddressID
+         LEFT JOIN Address a ON h.AddressID = a.AddressID
         WHERE fh.HeadType = 'Primary'
           AND r.ResidentStatus = 'Active'
          ORDER BY fh.HouseholdID, fh.FamilyLabel, fh.FamilyHeadID`,

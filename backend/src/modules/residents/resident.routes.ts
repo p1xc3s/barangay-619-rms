@@ -15,6 +15,13 @@ router.post(
     ResidentController.createResident
 );
 
+//Check duplicate resident
+router.post(
+    "/check-duplicate",
+    authorizeRole("Admin", "Staff"),
+    ResidentController.checkDuplicate
+);
+
 //Get all residents
 router.get(
     "/",

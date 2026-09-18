@@ -1,3 +1,5 @@
+import { toast } from "react-toastify";
+import { residentService } from "../services/residentService";
 import React, { useState, useEffect, useMemo } from "react";
 import type { SelectChangeEvent } from "@mui/material";
 import {
@@ -46,6 +48,12 @@ export interface HouseholdOption {
   id: string;
   number: string;
   street: string;
+  unitRoom?: string;
+  building?: string;
+  lotBlock?: string;
+  barangay?: string;
+  city?: string;
+  hasAddress?: boolean;
 }
 
 export interface FamilyHeadOption {
@@ -54,6 +62,11 @@ export interface FamilyHeadOption {
   householdId: number;
   householdNumber: string;
   street: string;
+  unitRoom?: string;
+  building?: string;
+  lotBlock?: string;
+  barangay?: string;
+  city?: string;
   familyLabel: string;
 }
 
@@ -188,6 +201,7 @@ const AddResidentModal: React.FC<AddResidentModalProps> = ({
   initialHouseholdId,
 }) => {
   const [activeStep, setActiveStep] = useState(0);
+  const [isCheckingDuplicate, setIsCheckingDuplicate] = useState(false);
   const [formData, setFormData] = useState(initialFormData);
   const familyHeadsList = useMemo(() => familyHeadOptions, [familyHeadOptions]);
 
@@ -279,7 +293,32 @@ const AddResidentModal: React.FC<AddResidentModalProps> = ({
   ];
 
   // --- Handlers ---
-  const handleNext = () => setActiveStep((prev) => prev + 1);
+  const handleNext = async () => {
+    if (activeStep === 0) {
+      if (formData.firstName && formData.lastName && formData.dob) {
+        try {
+          setIsCheckingDuplicate(true);
+          const isDuplicate = await residentService.checkDuplicate(
+            formData.firstName,
+            formData.lastName,
+            formData.middleName || undefined,
+            formData.dob
+          );
+          if (isDuplicate) {
+            toast.error("A resident with this name and birthdate is already registered.");
+            return;
+          }
+        } catch (error) {
+          console.error("Duplicate check failed", error);
+          toast.error("Failed to check for duplicate. Please try again.");
+          return;
+        } finally {
+          setIsCheckingDuplicate(false);
+        }
+      }
+    }
+    setActiveStep((prev) => prev + 1);
+  };
   const handleBack = () => setActiveStep((prev) => prev - 1);
 
   const handleChange = (
@@ -723,6 +762,251 @@ const AddResidentModal: React.FC<AddResidentModalProps> = ({
           <Paper
             elevation={0}
             variant="outlined"
+            sx={{ p: 4, borderRadius: 3, bgcolor: "white", height: "100%" }}
+          >
+            <Typography
+              variant="subtitle1"
+              fontWeight="bold"
+              color="primary"
+              sx={{ mb: 3, display: "flex", alignItems: "center", gap: 1 }}
+            >
+              <Home size={18} /> Household Setup
+            </Typography>
+
+            <Box sx={{ mb: 4 }}>
+              <FormLabel component="legend" sx={{ mb: 1, display: "block" }}>
+                Role in Family
+              </FormLabel>
+              <Box sx={{ display: "flex", gap: 2 }}>
+                {["head", "member"].map((role) => (
+                  <Paper
+                    key={role}
+                    onClick={() =>
+                      !initialHeadId &&
+                      setFormData((prev) => ({ ...prev, householdRole: role }))
+                    }
+                    variant="outlined"
+                    sx={{
+                      flex: 1,
+                      p: 2,
+                      cursor: initialHeadId ? "default" : "pointer",
+                      borderRadius: 2,
+                      textAlign: "center",
+                      bgcolor:
+                        formData.householdRole === role
+                          ? "#5b21b6"
+                          : "transparent",
+                      borderColor:
+                        formData.householdRole === role ? "#5b21b6" : "divider",
+                      color:
+                        formData.householdRole === role
+                          ? "#ffffff"
+                          : "text.secondary",
+                      transition: "all 0.2s",
+                      opacity:
+                        initialHeadId && formData.householdRole !== role
+                          ? 0.4
+                          : 1,
+                      position: "relative",
+                      "&:hover": {
+                        borderColor: initialHeadId ? "divider" : "primary.main",
+                      },
+                    }}
+                  >
+                    <Typography fontWeight="bold">
+                      {role === "head" ? "Head of Family" : "Member"}
+                    </Typography>
+                    {initialHeadId && formData.householdRole === role && (
+                      <Lock
+                        size={12}
+                        style={{
+                          position: "absolute",
+                          top: 8,
+                          right: 8,
+                          opacity: 0.5,
+                        }}
+                      />
+                    )}
+                  </Paper>
+                ))}
+              </Box>
+            </Box>
+
+            {formData.householdRole === "head" ? (
+              <Grid container spacing={3}>
+                <Grid size={{ xs: 12, md: 6 }}>
+                  <FormControl fullWidth required>
+                    <InputLabel>Barangay Household Number</InputLabel>
+                    <Select
+                      name="householdNumber"
+                      value={formData.householdNumber}
+                      label="Physical Household Number"
+                      onChange={(e) => {
+                        handleSelectChange(e);
+                        const hh = householdOptions.find(
+                          (h) => h.number === e.target.value,
+                        );
+                        if (hh) {
+                          setFormData((prev) => ({
+                            ...prev,
+                            street: hh.street || prev.street,
+                            unitRoom: hh.hasAddress ? hh.unitRoom || "" : "",
+                            building: hh.hasAddress ? hh.building || "" : "",
+                            lotBlock: hh.hasAddress ? hh.lotBlock || "" : "",
+                            barangay: hh.hasAddress ? hh.barangay || "Barangay 619" : "Barangay 619",
+                            city: hh.hasAddress ? hh.city || "Manila" : "Manila",
+                          }));
+                        }
+                      }}
+                    >
+                      {householdOptions.length > 0 ? (
+                        householdOptions.map((hh) => (
+                          <MenuItem key={hh.id} value={hh.number}>
+                            {hh.number} ({hh.street})
+                          </MenuItem>
+                        ))
+                      ) : (
+                        <MenuItem disabled>No households available</MenuItem>
+                      )}
+                    </Select>
+                    <FormHelperText
+                      sx={{ display: "flex", alignItems: "center", gap: 0.5 }}
+                    >
+                      <span className="flex items-center gap-1">
+                        <Info size={14} /> Multiple families can share one
+                        household number.
+                      </span>
+                    </FormHelperText>
+                  </FormControl>
+                </Grid>
+                <Grid size={{ xs: 12, md: 6 }}>
+                  <FormControl fullWidth required>
+                    <InputLabel>Occupancy Status</InputLabel>
+                    <Select
+                      name="occupancyStatus"
+                      value={formData.occupancyStatus}
+                      label="Occupancy Status"
+                      onChange={handleSelectChange}
+                    >
+                      <MenuItem value="Owner">Owner</MenuItem>
+                      <MenuItem value="Renter">Renter</MenuItem>
+                      <MenuItem value="Sharer">Sharer</MenuItem>
+                      <MenuItem value="Boarder">Boarder</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Grid>
+              </Grid>
+            ) : (
+              <Grid container spacing={3}>
+                <Grid size={{ xs: 12, md: 6 }}>
+                  <FormControl fullWidth required disabled={!!initialHeadId}>
+                    <InputLabel>Select Family Head</InputLabel>
+                    <Select
+                      name="householdHeadId"
+                      value={formData.householdHeadId}
+                      label="Select Family Head"
+                      onChange={(e) => {
+                        handleSelectChange(e);
+                        const head = familyHeadsList.find(
+                          (h) => h.id === e.target.value,
+                        );
+                        if (head) {
+                          setFormData((prev) => ({
+                            ...prev,
+                            street: head.street || prev.street,
+                            householdNumber: head.householdNumber,
+                            unitRoom: head.unitRoom || "",
+                            building: head.building || "",
+                            lotBlock: head.lotBlock || "",
+                            barangay: head.barangay || "Barangay 619",
+                            city: head.city || "Manila",
+                          }));
+                        }
+                      }}
+                    >
+                      {familyHeadsList.length > 0 ? (
+                        familyHeadsList.map((head) => (
+                          <MenuItem key={head.id} value={head.id}>
+                            {head.familyLabel} - {head.name} (
+                            {head.householdNumber})
+                          </MenuItem>
+                        ))
+                      ) : (
+                        <MenuItem disabled>No family heads available</MenuItem>
+                      )}
+                    </Select>
+                    {initialHeadId ? (
+                      <FormHelperText
+                        sx={{ display: "flex", alignItems: "center", gap: 0.5 }}
+                      >
+                        <span className="flex items-center gap-1 text-indigo-600 font-bold">
+                          <Lock size={14} /> Automatically selected from family
+                          context.
+                        </span>
+                      </FormHelperText>
+                    ) : (
+                      <FormHelperText
+                        sx={{ display: "flex", alignItems: "center", gap: 0.5 }}
+                      >
+                        <span className="flex items-center gap-1">
+                          <Info size={14} /> Link this resident to a specific
+                          family head.
+                        </span>
+                      </FormHelperText>
+                    )}
+                  </FormControl>
+                </Grid>
+
+                <Grid size={{ xs: 12, md: 6 }}>
+                  <FormControl fullWidth required>
+                    <InputLabel>Family Role / Relation to Head</InputLabel>
+                    <Select
+                      name="familyRole"
+                      value={formData.familyRole}
+                      label="Family Role / Relation to Head"
+                      onChange={handleSelectChange}
+                    >
+                      {familyRoles.map((role) => (
+                        <MenuItem key={role} value={role}>
+                          {role}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                    <FormHelperText
+                      sx={{ display: "flex", alignItems: "center", gap: 0.5 }}
+                    >
+                      <span className="flex items-center gap-1">
+                        <UsersRound size={14} /> Specify relationship to the
+                        chosen head.
+                      </span>
+                    </FormHelperText>
+                  </FormControl>
+                </Grid>
+
+                {formData.householdHeadId && (
+                  <Grid size={{ xs: 12 }}>
+                    <Box sx={{ p: 2, bgcolor: "grey.50", borderRadius: 2 }}>
+                      <Typography variant="caption" color="text.secondary">
+                        Family Head Address:
+                      </Typography>
+                      <Typography variant="body2" fontWeight="500">
+                        {familyHeadsList.find(
+                          (h) => h.id === formData.householdHeadId,
+                        )?.street || "N/A"}
+                        , Barangay 619, Manila
+                      </Typography>
+                    </Box>
+                  </Grid>
+                )}
+              </Grid>
+            )}
+          </Paper>
+        </Grid>
+
+        <Grid size={{ xs: 12, lg: 12 }}>
+          <Paper
+            elevation={0}
+            variant="outlined"
             sx={{
               p: 4,
               borderRadius: 3,
@@ -820,241 +1104,6 @@ const AddResidentModal: React.FC<AddResidentModalProps> = ({
                 />
               </Grid>
             </Grid>
-          </Paper>
-        </Grid>
-
-        <Grid size={{ xs: 12, lg: 12 }}>
-          <Paper
-            elevation={0}
-            variant="outlined"
-            sx={{ p: 4, borderRadius: 3, bgcolor: "white", height: "100%" }}
-          >
-            <Typography
-              variant="subtitle1"
-              fontWeight="bold"
-              color="primary"
-              sx={{ mb: 3, display: "flex", alignItems: "center", gap: 1 }}
-            >
-              <Home size={18} /> Household Setup
-            </Typography>
-
-            <Box sx={{ mb: 4 }}>
-              <FormLabel component="legend" sx={{ mb: 1, display: "block" }}>
-                Role in Family
-              </FormLabel>
-              <Box sx={{ display: "flex", gap: 2 }}>
-                {["head", "member"].map((role) => (
-                  <Paper
-                    key={role}
-                    onClick={() =>
-                      !initialHeadId &&
-                      setFormData((prev) => ({ ...prev, householdRole: role }))
-                    }
-                    variant="outlined"
-                    sx={{
-                      flex: 1,
-                      p: 2,
-                      cursor: initialHeadId ? "default" : "pointer",
-                      borderRadius: 2,
-                      textAlign: "center",
-                      bgcolor:
-                        formData.householdRole === role
-                          ? "#5b21b6"
-                          : "transparent",
-                      borderColor:
-                        formData.householdRole === role ? "#5b21b6" : "divider",
-                      color:
-                        formData.householdRole === role
-                          ? "#ffffff"
-                          : "text.secondary",
-                      transition: "all 0.2s",
-                      opacity:
-                        initialHeadId && formData.householdRole !== role
-                          ? 0.4
-                          : 1,
-                      position: "relative",
-                      "&:hover": {
-                        borderColor: initialHeadId ? "divider" : "primary.main",
-                      },
-                    }}
-                  >
-                    <Typography fontWeight="bold">
-                      {role === "head" ? "Head of Family" : "Member"}
-                    </Typography>
-                    {initialHeadId && formData.householdRole === role && (
-                      <Lock
-                        size={12}
-                        style={{
-                          position: "absolute",
-                          top: 8,
-                          right: 8,
-                          opacity: 0.5,
-                        }}
-                      />
-                    )}
-                  </Paper>
-                ))}
-              </Box>
-            </Box>
-
-            {formData.householdRole === "head" ? (
-              <Grid container spacing={3}>
-                <Grid size={{ xs: 12, md: 6 }}>
-                  <FormControl fullWidth required>
-                    <InputLabel>Barangay Household Number</InputLabel>
-                    <Select
-                      name="householdNumber"
-                      value={formData.householdNumber}
-                      label="Physical Household Number"
-                      onChange={(e) => {
-                        handleSelectChange(e);
-                        const hh = householdOptions.find(
-                          (h) => h.number === e.target.value,
-                        );
-                        if (hh) {
-                          setFormData((prev) => ({
-                            ...prev,
-                            street: hh.street,
-                          }));
-                        }
-                      }}
-                    >
-                      {householdOptions.length > 0 ? (
-                        householdOptions.map((hh) => (
-                          <MenuItem key={hh.id} value={hh.number}>
-                            {hh.number} ({hh.street})
-                          </MenuItem>
-                        ))
-                      ) : (
-                        <MenuItem disabled>No households available</MenuItem>
-                      )}
-                    </Select>
-                    <FormHelperText
-                      sx={{ display: "flex", alignItems: "center", gap: 0.5 }}
-                    >
-                      <span className="flex items-center gap-1">
-                        <Info size={14} /> Multiple families can share one
-                        household number.
-                      </span>
-                    </FormHelperText>
-                  </FormControl>
-                </Grid>
-                <Grid size={{ xs: 12, md: 6 }}>
-                  <FormControl fullWidth required>
-                    <InputLabel>Occupancy Status</InputLabel>
-                    <Select
-                      name="occupancyStatus"
-                      value={formData.occupancyStatus}
-                      label="Occupancy Status"
-                      onChange={handleSelectChange}
-                    >
-                      <MenuItem value="Owner">Owner</MenuItem>
-                      <MenuItem value="Renter">Renter</MenuItem>
-                      <MenuItem value="Sharer">Sharer</MenuItem>
-                      <MenuItem value="Boarder">Boarder</MenuItem>
-                    </Select>
-                  </FormControl>
-                </Grid>
-              </Grid>
-            ) : (
-              <Grid container spacing={3}>
-                <Grid size={{ xs: 12, md: 6 }}>
-                  <FormControl fullWidth required disabled={!!initialHeadId}>
-                    <InputLabel>Select Family Head</InputLabel>
-                    <Select
-                      name="householdHeadId"
-                      value={formData.householdHeadId}
-                      label="Select Family Head"
-                      onChange={(e) => {
-                        handleSelectChange(e);
-                        const head = familyHeadsList.find(
-                          (h) => h.id === e.target.value,
-                        );
-                        if (head) {
-                          setFormData((prev) => ({
-                            ...prev,
-                            street: head.street,
-                            householdNumber: head.householdNumber,
-                          }));
-                        }
-                      }}
-                    >
-                      {familyHeadsList.length > 0 ? (
-                        familyHeadsList.map((head) => (
-                          <MenuItem key={head.id} value={head.id}>
-                            {head.familyLabel} - {head.name} (
-                            {head.householdNumber})
-                          </MenuItem>
-                        ))
-                      ) : (
-                        <MenuItem disabled>No family heads available</MenuItem>
-                      )}
-                    </Select>
-                    {initialHeadId ? (
-                      <FormHelperText
-                        sx={{ display: "flex", alignItems: "center", gap: 0.5 }}
-                      >
-                        <span className="flex items-center gap-1 text-indigo-600 font-bold">
-                          <Lock size={14} /> Automatically selected from family
-                          context.
-                        </span>
-                      </FormHelperText>
-                    ) : (
-                      <FormHelperText
-                        sx={{ display: "flex", alignItems: "center", gap: 0.5 }}
-                      >
-                        <span className="flex items-center gap-1">
-                          <Info size={14} /> Link this resident to a specific
-                          family head.
-                        </span>
-                      </FormHelperText>
-                    )}
-                  </FormControl>
-                </Grid>
-
-                <Grid size={{ xs: 12, md: 6 }}>
-                  <FormControl fullWidth required>
-                    <InputLabel>Family Role / Relation to Head</InputLabel>
-                    <Select
-                      name="familyRole"
-                      value={formData.familyRole}
-                      label="Family Role / Relation to Head"
-                      onChange={handleSelectChange}
-                    >
-                      {familyRoles.map((role) => (
-                        <MenuItem key={role} value={role}>
-                          {role}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                    <FormHelperText
-                      sx={{ display: "flex", alignItems: "center", gap: 0.5 }}
-                    >
-                      <span className="flex items-center gap-1">
-                        <UsersRound size={14} /> Specify relationship to the
-                        chosen head.
-                      </span>
-                    </FormHelperText>
-                  </FormControl>
-                </Grid>
-
-                {formData.householdHeadId && (
-                  <Grid size={{ xs: 12 }}>
-                    <Box sx={{ p: 2, bgcolor: "grey.50", borderRadius: 2 }}>
-                      <Typography variant="caption" color="text.secondary">
-                        Family Head Address:
-                      </Typography>
-                      <Typography variant="body2" fontWeight="500">
-                        {familyHeadsList.find(
-                          (h) => h.id === formData.householdHeadId,
-                        )?.street || "N/A"}
-                        , Barangay 619, Manila
-                      </Typography>
-                    </Box>
-                  </Grid>
-                )}
-              </Grid>
-            )}
           </Paper>
         </Grid>
       </Grid>
@@ -1660,7 +1709,7 @@ const AddResidentModal: React.FC<AddResidentModalProps> = ({
               <Button
                 variant="contained"
                 onClick={handleNext}
-                disabled={!isStepValid()}
+                disabled={!isStepValid() || isCheckingDuplicate}
                 endIcon={<ChevronRight />}
                 size="large"
                 sx={{
@@ -1671,7 +1720,7 @@ const AddResidentModal: React.FC<AddResidentModalProps> = ({
                   "&:hover": { bgcolor: "#4a0475" },
                 }}
               >
-                Next Step
+                {isCheckingDuplicate ? "Checking..." : "Next Step"}
               </Button>
             )}
           </Container>

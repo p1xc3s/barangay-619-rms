@@ -14,76 +14,20 @@ import type { StatData, ChartData, DashboardStats } from "../types";
 import { dashboardService } from "../services/dashboardService";
 import { notify } from "../utils/notify";
 import { useHouseholdDataRefresh } from "../hooks/useHouseholdDataSync";
-
-// Reusable Component for Resident Logs with Button Toggle
-interface ResidentLogCardProps {
-  title: string;
-  monthlyValue: number;
-  yearlyValue: number;
-  colorTheme: "blue" | "indigo" | "orange";
-}
-
-const ResidentLogCard: React.FC<ResidentLogCardProps> = ({
-  title,
-  monthlyValue,
-  yearlyValue,
-  colorTheme,
-}) => {
-  const [isYearly, setIsYearly] = useState(false);
-
-  // Color mappings based on theme for the border
-  const colors = {
-    blue: { border: "border-blue-500" },
-    indigo: { border: "border-indigo-500" },
-    orange: { border: "border-orange-500" },
-  };
-
-  const theme = colors[colorTheme];
-
-  return (
-    <div className="flex-1 bg-white rounded-xl shadow-sm border border-gray-100 p-5 flex flex-col justify-center">
-      <div className={`border-l-4 ${theme.border} pl-4`}>
-        <p className="text-sm text-gray-500 font-medium mb-2">{title}</p>
-        <div className="flex items-center justify-between">
-          {/* Animated Value Change */}
-          <span
-            className="text-3xl font-bold text-gray-800 tabular-nums animate-in fade-in duration-300"
-            key={isYearly ? "year" : "month"}
-          >
-            {isYearly ? yearlyValue : monthlyValue}
-          </span>
-
-          {/* Segmented Button Control */}
-          <div className="flex bg-gray-100 p-1 rounded-lg shrink-0 ml-4">
-            <button
-              onClick={() => setIsYearly(false)}
-              className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all duration-200 ${!isYearly ? "bg-white shadow-sm text-gray-900" : "text-gray-400 hover:text-gray-600"}`}
-            >
-              Month
-            </button>
-            <button
-              onClick={() => setIsYearly(true)}
-              className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all duration-200 ${isYearly ? "bg-white shadow-sm text-gray-900" : "text-gray-400 hover:text-gray-600"}`}
-            >
-              Year
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
+import { useAuth } from "../hooks/useAuth";
 
 // Helper to format numbers with commas
 const fmt = (n: number): string => n.toLocaleString();
 
 const Dashboard: React.FC = () => {
   const [data, setData] = useState<DashboardStats | null>(null);
+  const [dateFilter, setDateFilter] = useState<string>("");
+  const { user } = useAuth();
 
   useEffect(() => {
     const fetchDashboard = async () => {
       try {
-        const result = await dashboardService.getStats();
+        const result = await dashboardService.getStats(dateFilter || undefined);
         setData(result);
       } catch (error: unknown) {
         notify.error("Failed to load dashboard statistics.");
@@ -92,18 +36,18 @@ const Dashboard: React.FC = () => {
       }
     };
     fetchDashboard();
-  }, []);
+  }, [dateFilter]);
 
   const refreshDashboard = React.useCallback(async () => {
     try {
-      const result = await dashboardService.getStats();
+      const result = await dashboardService.getStats(dateFilter || undefined);
       setData(result);
     } catch (error: unknown) {
       notify.error("Failed to load dashboard statistics.");
       console.error("Dashboard stats fetch failed:", error);
       setData(null);
     }
-  }, []);
+  }, [dateFilter]);
 
   useHouseholdDataRefresh(refreshDashboard);
 
@@ -184,30 +128,41 @@ const Dashboard: React.FC = () => {
     }, // Slate 300
   ];
 
-  // Data for the Log Cards
-  const logData = [
-    {
-      title: "New Residents",
-      monthly: data?.logs.newResidents.monthly ?? 0,
-      yearly: data?.logs.newResidents.yearly ?? 0,
-      theme: "blue" as const,
-    },
-    {
-      title: "Moved out Residents",
-      monthly: data?.logs.movedOut.monthly ?? 0,
-      yearly: data?.logs.movedOut.yearly ?? 0,
-      theme: "indigo" as const,
-    },
-    {
-      title: "Deceased Residents",
-      monthly: data?.logs.deceased.monthly ?? 0,
-      yearly: data?.logs.deceased.yearly ?? 0,
-      theme: "orange" as const,
-    },
-  ];
-
   return (
     <div className="flex-1 p-6 bg-gray-50 overflow-y-auto h-full">
+      {/* Header Section */}
+      <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4 bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-800">
+            Welcome, {user?.role || "User"}
+          </h2>
+          <p className="text-sm text-gray-500">
+            {dateFilter ? "Viewing historical snapshot" : "Here is your barangay's current live data"}
+          </p>
+        </div>
+        
+        <div className="flex items-center gap-3">
+          <label htmlFor="monthFilter" className="text-sm font-semibold text-gray-700">
+            Snapshot Date:
+          </label>
+          <input
+            id="monthFilter"
+            type="month"
+            value={dateFilter}
+            onChange={(e) => setDateFilter(e.target.value)}
+            className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent shadow-sm"
+          />
+          {dateFilter && (
+            <button 
+              onClick={() => setDateFilter("")}
+              className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+            >
+              Clear
+            </button>
+          )}
+        </div>
+      </div>
+
       <div className="flex flex-col xl:flex-row gap-6">
         {/* Left Section: Stats & Charts */}
         <div className="flex-1 flex flex-col gap-6">
@@ -221,7 +176,7 @@ const Dashboard: React.FC = () => {
           {/* Bottom Section: Classification & Logs */}
           <div className="flex flex-col md:flex-row gap-6 h-full min-h-87.5">
             {/* Pie Chart Card */}
-            <div className="flex-1 bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex flex-col">
+            <div className="w-full bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex flex-col">
               <h3 className="text-base font-bold text-blue-600 mb-2">
                 Resident Classification
               </h3>
@@ -231,10 +186,10 @@ const Dashboard: React.FC = () => {
                   <PieChart>
                     <Pie
                       data={chartData}
-                      cx="40%"
+                      cx="50%"
                       cy="50%"
-                      innerRadius={80}
-                      outerRadius={120}
+                      innerRadius={90}
+                      outerRadius={140}
                       paddingAngle={4}
                       dataKey="value"
                     >
@@ -257,26 +212,13 @@ const Dashboard: React.FC = () => {
                       layout="vertical"
                       verticalAlign="middle"
                       align="right"
-                      wrapperStyle={{ fontSize: "12px" }}
-                      iconSize={12}
+                      wrapperStyle={{ fontSize: "14px" }}
+                      iconSize={14}
                       iconType="circle"
                     />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
-            </div>
-
-            {/* Separate Stats Cards Column with Toggles */}
-            <div className="w-full md:w-1/3 flex flex-col gap-4">
-              {logData.map((log, index) => (
-                <ResidentLogCard
-                  key={index}
-                  title={log.title}
-                  monthlyValue={log.monthly}
-                  yearlyValue={log.yearly}
-                  colorTheme={log.theme}
-                />
-              ))}
             </div>
           </div>
         </div>

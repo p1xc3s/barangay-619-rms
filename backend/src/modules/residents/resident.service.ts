@@ -18,10 +18,21 @@ const isValidOccupancyStatus = (value: unknown): boolean =>
   ["Owner", "Renter", "Sharer", "Boarder"].includes(value.trim());
 
 export class ResidentService {
+  static async checkDuplicate(firstName: string, lastName: string, middleName: string | undefined, dob: string): Promise<boolean> {
+    return ResidentRepository.checkIfDuplicate(firstName, lastName, middleName, dob);
+  }
+
   static async createResident(data: any, userId: number) {
     //Resident data validation
     if (!data.firstName || !data.lastName || !data.sex) {
       throw { status: 400, message: "Missing required resident fields!" };
+    }
+
+    if (data.dob) {
+      const isDuplicate = await ResidentService.checkDuplicate(data.firstName, data.lastName, data.middleName, data.dob);
+      if (isDuplicate) {
+        throw { status: 400, message: "A resident with the same First Name, Last Name, and Date of Birth is already registered." };
+      }
     }
 
     const address =

@@ -138,54 +138,49 @@ const hasOwn = (obj: Record<string, unknown>, key: string): boolean =>
   Object.prototype.hasOwnProperty.call(obj, key);
 
 export class ResidentRepository {
+  static async checkIfDuplicate(firstName: string, lastName: string, middleName: string | undefined, dob: string): Promise<boolean> {
+    const conn = await pool.getConnection();
+    try {
+      if (middleName && middleName.trim() !== "") {
+        const rows = await conn.query(
+          `SELECT COUNT(*) as count FROM Resident 
+           WHERE FirstName = ? AND LastName = ? AND MiddleName = ? AND DateOfBirth = ? AND ResidentStatus != 'Archived'`,
+          [firstName, lastName, middleName, dob]
+        );
+        return Number(rows[0]?.count || 0) > 0;
+      } else {
+        const rows = await conn.query(
+          `SELECT COUNT(*) as count FROM Resident 
+           WHERE FirstName = ? AND LastName = ? AND (MiddleName IS NULL OR MiddleName = '') AND DateOfBirth = ? AND ResidentStatus != 'Archived'`,
+          [firstName, lastName, dob]
+        );
+        return Number(rows[0]?.count || 0) > 0;
+      }
+    } finally {
+      conn.release();
+    }
+  }
+
   static async createResident(data: any) {
     const conn = await pool.getConnection();
 
     try {
       await conn.beginTransaction();
 
-      //Add Address fields
-      const addressResult = await conn.query(
-        `INSERT INTO Address (
-          Unit_RoomNo_Floor, 
-          Building_Name, 
-          Lot_Block_Phase_Num, 
-          HouseNumber, 
-          Street_Alley_Zone, 
-          Barangay, 
-          Municipality
-        ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [
-          data.address?.unitRoomFloor ?? null,
-          data.address?.buildingName ?? null,
-          data.address?.lotBlockPhase ?? null,
-          data.address.houseNumber,
-          data.address.street,
-          data.address.barangay,
-          data.address.municipality,
-        ],
-      );
-
-      const addressId = Number(addressResult.insertId);
-
-      //Add Household - resolve HouseID → HouseholdID if needed
       let householdId: number | null = null;
+      let existingAddressId: number | null = null;
 
+      // 1. Resolve Household and check its AddressID
       if (data.householdId) {
         // First check if this is a valid HouseholdID
         const directCheck = await conn.query(
-          `SELECT HouseholdID FROM Household WHERE HouseholdID = ? LIMIT 1`,
+          `SELECT HouseholdID, AddressID FROM Household WHERE HouseholdID = ? LIMIT 1`,
           [data.householdId],
         );
 
         if (directCheck.length > 0) {
-          householdId = data.householdId;
-
-          // Update the Household to point to the new specific Address
-          await conn.query(
-            `UPDATE Household SET AddressID = ? WHERE HouseholdID = ?`,
-            [addressId, householdId],
-          );
+          householdId = directCheck[0].HouseholdID;
+          existingAddressId = directCheck[0].AddressID;
         } else {
           // It might be a HouseID from HouseholdNumber - resolve it
           try {
@@ -193,13 +188,8 @@ export class ResidentRepository {
               conn,
               data.householdId,
             );
-            
-            // ---> THE MISSING FIX <---
-            // We just created the Household, now we MUST point it to the new specific Address!
-            await conn.query(
-              `UPDATE Household SET AddressID = ? WHERE HouseholdID = ?`,
-              [addressId, householdId]
-            );
+            // We just created it, so it definitely has no AddressID yet
+            existingAddressId = null;
           } catch {
             // If resolution fails, throw a clear error
             throw {
@@ -207,6 +197,51 @@ export class ResidentRepository {
               message: "Invalid household ID!",
             };
           }
+        }
+      }
+
+      // 2. Handle Address logic (NULL-temporarily architecture)
+      if (householdId) {
+        if (!existingAddressId && data.address) {
+          // The Household doesn't have an Address yet! Create it now.
+          const addressResult = await conn.query(
+            `INSERT INTO Address (
+              Unit_RoomNo_Floor, Building_Name, Lot_Block_Phase_Num, 
+              HouseNumber, Street_Alley_Zone, Barangay, Municipality
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            [
+              data.address?.unitRoomFloor ?? null,
+              data.address?.buildingName ?? null,
+              data.address?.lotBlockPhase ?? null,
+              data.address.houseNumber || "",
+              data.address.street || "",
+              data.address.barangay || "Barangay 619",
+              data.address.municipality || "Manila",
+            ],
+          );
+          
+          const finalAddressId = Number(addressResult.insertId);
+
+          // Lock this new AddressID into the Household
+          await conn.query(
+            `UPDATE Household SET AddressID = ? WHERE HouseholdID = ?`,
+            [finalAddressId, householdId],
+          );
+        } else if (existingAddressId && data.address) {
+          // The Household already has an Address. Just update it with any new details.
+          await conn.query(
+            `UPDATE Address SET 
+              Unit_RoomNo_Floor = ?, 
+              Building_Name = ?, 
+              Lot_Block_Phase_Num = ?
+             WHERE AddressID = ?`,
+            [
+              data.address?.unitRoomFloor ?? null,
+              data.address?.buildingName ?? null,
+              data.address?.lotBlockPhase ?? null,
+              existingAddressId
+            ]
+          );
         }
       }
 
@@ -580,63 +615,7 @@ export class ResidentRepository {
         ],
       );
 
-      // Sync Address fields if provided
-      if (data.address) {
-        // Find the AddressID linked to this resident's household
-        const addressRows = await conn.query(
-          `SELECT h.AddressID, h.HouseholdID FROM Household h 
-           JOIN Resident r ON r.HouseholdID = h.HouseholdID 
-           WHERE r.ResidentID = ?`,
-          [id]
-        );
 
-        if (addressRows.length > 0 && addressRows[0].AddressID) {
-          const currentAddressId = addressRows[0].AddressID;
-          const targetHouseholdId = addressRows[0].HouseholdID;
-
-          // AddressID 1, 2, and 3 are the base streets, we don't want to overwrite them!
-          if (currentAddressId > 3) {
-            // It's a specific address, safe to overwrite
-            await conn.query(
-              `UPDATE Address SET 
-                Unit_RoomNo_Floor = ?, 
-                Building_Name = ?, 
-                Lot_Block_Phase_Num = ?
-               WHERE AddressID = ?`,
-              [
-                data.address.unitRoomFloor || null,
-                data.address.buildingName || null,
-                data.address.lotBlockPhase || null,
-                currentAddressId
-              ]
-            );
-          } else {
-            // The household is still stuck on the blank template street!
-            // We must create a brand new specific address and switch the household to it.
-            const newAddressResult = await conn.query(
-              `INSERT INTO Address (
-                Unit_RoomNo_Floor, Building_Name, Lot_Block_Phase_Num, 
-                HouseNumber, Street_Alley_Zone, Barangay, Municipality
-              ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-              [
-                data.address.unitRoomFloor || null,
-                data.address.buildingName || null,
-                data.address.lotBlockPhase || null,
-                data.address.houseNumber || "",
-                data.address.street || "",
-                data.address.barangay || "Barangay 619",
-                data.address.municipality || "Manila"
-              ]
-            );
-
-            // Link the household to the new specific address
-            await conn.query(
-              `UPDATE Household SET AddressID = ? WHERE HouseholdID = ?`,
-              [newAddressResult.insertId, targetHouseholdId]
-            );
-          }
-        }
-      }
 
       let categoriesSynced = false;
       let educationSynced = false;
@@ -823,6 +802,62 @@ export class ResidentRepository {
         }
 
         occupancySynced = true;
+      }
+
+      // Sync Address fields if provided
+      if (data.address) {
+        // Find the AddressID linked to this resident's household
+        const addressRows = await conn.query(
+          `SELECT h.AddressID, h.HouseholdID FROM Household h 
+           JOIN Resident r ON r.HouseholdID = h.HouseholdID 
+           WHERE r.ResidentID = ?`,
+          [id]
+        );
+
+        if (addressRows.length > 0) {
+          const currentAddressId = addressRows[0].AddressID;
+          const targetHouseholdId = addressRows[0].HouseholdID;
+
+          if (currentAddressId) {
+            // Safe to overwrite, as every household now exclusively owns its Address row
+            await conn.query(
+              `UPDATE Address SET 
+                Unit_RoomNo_Floor = ?, 
+                Building_Name = ?, 
+                Lot_Block_Phase_Num = ?
+               WHERE AddressID = ?`,
+              [
+                data.address.unitRoomFloor || null,
+                data.address.buildingName || null,
+                data.address.lotBlockPhase || null,
+                currentAddressId
+              ]
+            );
+          } else if (targetHouseholdId) {
+            // The Household exists but has a NULL AddressID! Create it now on-demand.
+            const newAddressResult = await conn.query(
+              `INSERT INTO Address (
+                Unit_RoomNo_Floor, Building_Name, Lot_Block_Phase_Num, 
+                HouseNumber, Street_Alley_Zone, Barangay, Municipality
+              ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+              [
+                data.address.unitRoomFloor || null,
+                data.address.buildingName || null,
+                data.address.lotBlockPhase || null,
+                data.address.houseNumber || "",
+                data.address.street || "",
+                data.address.barangay || "Barangay 619",
+                data.address.municipality || "Manila"
+              ]
+            );
+
+            // Link the household to the new specific address
+            await conn.query(
+              `UPDATE Household SET AddressID = ? WHERE HouseholdID = ?`,
+              [newAddressResult.insertId, targetHouseholdId]
+            );
+          }
+        }
       }
 
       await conn.commit();

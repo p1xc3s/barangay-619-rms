@@ -173,6 +173,9 @@ const Archive: React.FC = () => {
 
   const handleConfirmRestore = async () => {
     if (residentToRestore) {
+      if (!window.confirm(`Are you sure you want to proceed with restoring ${residentToRestore.firstName} ${residentToRestore.lastName} to the active list?`)) {
+        return;
+      }
       try {
         const result = await archiveService.restoreResident(
           residentToRestore.id,

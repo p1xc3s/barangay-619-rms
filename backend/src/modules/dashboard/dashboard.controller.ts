@@ -5,12 +5,13 @@ export class DashboardController {
 
     //GET /api/dashboard/stats
     static async getStats(
-        _req: Request,
+        req: Request,
         res: Response,
         next: NextFunction
     ) {
         try {
-            const stats = await DashboardService.getDashboardStats();
+            const dateFilter = req.query.dateFilter as string | undefined;
+            const stats = await DashboardService.getDashboardStats(dateFilter);
             res.json({ success: true, data: stats });
         } catch (error) {
             next(error);
