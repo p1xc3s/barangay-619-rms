@@ -9,6 +9,7 @@ import { AuthProvider, useAuth } from "./hooks/useAuth";
 import AppRoutes from "./routes/AppRoutes";
 import Sidebar from "./components/Sidebar";
 import theme from "./themes/theme";
+import SessionTimeoutManager from "./components/SessionTimeoutManager";
 
 // Layout component that conditionally shows sidebar for authenticated pages
 const AppLayout = () => {
@@ -35,6 +36,7 @@ const AppLayout = () => {
         overflow: "hidden",
       }}
     >
+      <SessionTimeoutManager />
       <Sidebar />
       <Box sx={{ flex: 1, overflow: "auto" }}>
         <AppRoutes />
