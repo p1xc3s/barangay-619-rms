@@ -90,6 +90,13 @@ router.patch("/:id/status", async (req, res, next) => {
     const { status } = req.body;
     const userId = (req as any).user.userId;
 
+    if (targetUserId === userId && status === "Inactive") {
+      return res.status(403).json({ 
+        success: false, 
+        message: "You cannot deactivate your own account!" 
+      });
+    }
+
     await UserService.updateUserStatus(targetUserId, status);
 
     await AuditTrailRepository.log({

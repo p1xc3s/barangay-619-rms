@@ -52,8 +52,8 @@ import {
   UserPlus,
   History,
   Search,
-  UserCheck,
-  UserMinus,
+  PowerOff,
+  CheckCircle,
   Filter,
   Monitor,
 } from "lucide-react";
@@ -68,6 +68,7 @@ import { notify } from "../utils/notify";
 import { useBarangayLogo } from "../hooks/useBarangayLogo";
 import SortOrderToggle, { type SortOrder } from "./SortOrderToggle";
 import type { ResidentListItem } from "../types";
+import { useAuth } from "../hooks/useAuth";
 
 interface BarangayInfoForm {
   name: string;
@@ -212,6 +213,7 @@ const Settings: React.FC = () => {
   const { logoSrc, setLogoSrc } = useBarangayLogo();
   const logoInputRef = useRef<HTMLInputElement | null>(null);
   const [activeTab, setActiveTab] = useState(0);
+  const { user: authUser } = useAuth();
 
   const [isEditingInfo, setIsEditingInfo] = useState(false);
   const [barangayInfo, setBarangayInfo] = useState<BarangayInfoForm>(
@@ -1730,33 +1732,51 @@ const Settings: React.FC = () => {
                             </Tooltip>
                             <Tooltip
                               title={
-                                user.status === "Active"
-                                  ? "Deactivate Account"
-                                  : "Activate Account"
+                                user.id === authUser?.userId
+                                  ? "You cannot deactivate yourself" // Show a helpful tooltip
+                                  : user.status === "Active"
+                                    ? "Deactivate Account"
+                                    : "Activate Account"
                               }
                             >
-                              <IconButton
-                                size="small"
-                                onClick={() => handleToggleUserStatus(user.id)}
-                                sx={{
-                                  color:
+                              <span>
+                                {" "}
+                                {/* Wrap in a span so Tooltip still works when disabled */}
+                                <IconButton
+                                  size="small"
+                                  disabled={
+                                    user.id === authUser?.userId &&
                                     user.status === "Active"
-                                      ? "#ef4444"
-                                      : "#10b981",
-                                  "&:hover": {
-                                    bgcolor:
+                                  }
+                                  onClick={() =>
+                                    handleToggleUserStatus(user.id)
+                                  }
+                                  sx={{
+                                    color:
+                                      user.id === authUser?.userId &&
                                       user.status === "Active"
-                                        ? "#fee2e2"
-                                        : "#dcfce7",
-                                  },
-                                }}
-                              >
-                                {user.status === "Active" ? (
-                                  <UserMinus size={16} />
-                                ) : (
-                                  <UserCheck size={16} />
-                                )}
-                              </IconButton>
+                                        ? "#9ca3af" // Gray for currently logged-in Admin
+                                        : user.status === "Active"
+                                          ? "#ef4444" // Red to Deactivate others
+                                          : "#10b981", // Green to Activate
+                                    "&:hover": {
+                                      bgcolor:
+                                        user.id === authUser?.userId &&
+                                        user.status === "Active"
+                                          ? "transparent" // No hover effect if disabled
+                                          : user.status === "Active"
+                                            ? "#fee2e2"
+                                            : "#dcfce7",
+                                    },
+                                  }}
+                                >
+                                  {user.status === "Active" ? (
+                                    <PowerOff size={16} />
+                                  ) : (
+                                    <CheckCircle size={16} />
+                                  )}
+                                </IconButton>
+                              </span>
                             </Tooltip>
                           </Box>
                         </TableCell>
