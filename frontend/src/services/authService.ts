@@ -15,7 +15,7 @@ export const authService = {
 
     // Decode the JWT payload to get userId and role
     const payload = JSON.parse(atob(token.split('.')[1]));
-    return { userId: payload.userId, role: payload.role };
+    return { userId: payload.userId, role: payload.role, isFirstLogin: payload.isFirstLogin };
   },
 
   /**
@@ -46,6 +46,10 @@ export const authService = {
       localStorage.removeItem(TOKEN_KEY);
       return null;
     }
+  },
+
+  async changePassword(newPassword: string): Promise<void> {
+    await api.put('/auth/change-password', { newPassword });
   },
 
   /** Get the stored JWT token */

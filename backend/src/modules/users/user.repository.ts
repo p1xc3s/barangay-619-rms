@@ -53,7 +53,7 @@ export const UserRepository = {
     const conn = await pool.getConnection();
     try {
       const rows = await conn.query(
-        `SELECT UserID, Username, Role, AccStatus FROM UserAccount WHERE UserID = ?`,
+        `SELECT UserID, Username, Role, AccStatus, IsFirstLogin FROM UserAccount WHERE UserID = ?`,
         [userId]
       );
 
@@ -69,6 +69,7 @@ export const UserRepository = {
       username?: string;
       password?: string;
       role?: "Admin" | "Staff";
+      isFirstLogin?: boolean;
     }
   ) {
     const conn = await pool.getConnection();
@@ -89,6 +90,11 @@ export const UserRepository = {
       if (data.role) {
         fields.push("Role = ?");
         params.push(data.role);
+      }
+
+      if (data.isFirstLogin !== undefined) {
+        fields.push("IsFirstLogin = ?");
+        params.push(data.isFirstLogin ? 1 : 0);
       }
 
       if (fields.length === 0) return false;

@@ -35,6 +35,7 @@ export const UserService = {
             username?: string;
             password?: string;
             role?: "Admin" | "Staff";
+            isFirstLogin?: boolean;
         }
     ) {
         const existing = await UserRepository.findById(userId);

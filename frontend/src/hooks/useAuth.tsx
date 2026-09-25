@@ -14,6 +14,7 @@ interface AuthContextType {
   isLoading: boolean;
   login: (username: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -23,6 +24,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 }) => {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  
+  const refreshUser = useCallback(async () => {
+    try {
+      const verifiedUser = await authService.verifyToken();
+      setUser(verifiedUser);
+    } catch {
+      setUser(null);
+    }
+  }, []);
 
   // On mount: check if there's a valid stored session
   useEffect(() => {
@@ -57,6 +67,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         isLoading,
         login,
         logout,
+        refreshUser,
       }}
     >
       {children}

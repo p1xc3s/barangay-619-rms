@@ -9,5 +9,6 @@ router.post("/logout", authenticate, AuthController.logout);
 
 //GET /api/auth/verify - Verify token validity
 router.get("/verify", authenticate, AuthController.verify);
+router.put("/change-password", authenticate, AuthController.changePassword);
 
 export default router;

@@ -10,6 +10,7 @@ import AppRoutes from "./routes/AppRoutes";
 import Sidebar from "./components/Sidebar";
 import theme from "./themes/theme";
 import SessionTimeoutManager from "./components/SessionTimeoutManager";
+import ForceChangePasswordModal from "./components/ForceChangePasswordModal";
 
 // Layout component that conditionally shows sidebar for authenticated pages
 const AppLayout = () => {
@@ -37,6 +38,7 @@ const AppLayout = () => {
       }}
     >
       <SessionTimeoutManager />
+      <ForceChangePasswordModal />
       <Sidebar />
       <Box sx={{ flex: 1, overflow: "auto" }}>
         <AppRoutes />

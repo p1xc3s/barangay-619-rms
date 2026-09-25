@@ -24,6 +24,7 @@ export interface LoginResponse {
 export interface AuthUser {
   userId: number;
   role: "Admin" | "Staff";
+  isFirstLogin?: boolean;
 }
 
 // ==========================================

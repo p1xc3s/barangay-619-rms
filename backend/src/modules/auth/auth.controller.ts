@@ -17,7 +17,11 @@ export const AuthController = {
       }
 
       const token = jwt.sign(
-        { userId: user.UserID, role: user.Role },
+        {
+          userId: user.UserID,
+          role: user.Role,
+          isFirstLogin: user.IsFirstLogin === 1,
+        },
         ENV.JWT_SECRET,
         { expiresIn: "1h" },
       );
@@ -56,15 +60,47 @@ export const AuthController = {
     }
   },
 
-  verify(req: Request, res: Response) {
-    //If we reached here the token is valid
-    const user = (req as any).user;
-    res.json({
-      success: true,
-      data: {
-        userId: user.userId,
-        role: user.role,
-      },
-    });
+  async verify(req: Request, res: Response, next: NextFunction) {
+    try {
+      const userToken = (req as any).user;
+      const user = await UserService.getUserById(userToken.userId);
+
+      res.json({
+        success: true,
+        data: {
+          userId: user.UserID,
+          role: user.Role,
+          isFirstLogin: user.IsFirstLogin === 1,
+        },
+      });
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async changePassword(req: Request, res: Response, next: NextFunction) {
+    try {
+      const userId = (req as any).user.userId;
+      const { newPassword } = req.body;
+
+      if (!newPassword) {
+        return res.status(400).json({
+          message: "New password is required!",
+        });
+      }
+      
+      // Update password and clear the first login flag
+      await UserService.updateUser(userId, {
+        password: newPassword,
+        isFirstLogin: false,
+      });
+
+      res.json({
+        success: true,
+        message: "Password updated successfully!",
+      });
+    } catch (err) {
+      next(err);
+    }
   },
 };
