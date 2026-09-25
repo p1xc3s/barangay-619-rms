@@ -200,6 +200,7 @@ export interface FamilyRecord {
   LastName: string;
   DateOfBirth: string;
   RelationshipToFamilyHead: string | null;
+  ResidentStatus?: string;
 }
 
 export interface FamilyHeadOption {

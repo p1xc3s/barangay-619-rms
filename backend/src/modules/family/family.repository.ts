@@ -224,7 +224,7 @@ export class FamilyRepository {
     }
   }
 
-  //Get all family members of a household
+   // Get all family members of a household
   static async getFamilyByHousehold(householdId: number) {
     const conn = await pool.getConnection();
     try {
@@ -237,6 +237,7 @@ export class FamilyRepository {
            head.FirstName,
            head.LastName,
            head.DateOfBirth,
+           head.ResidentStatus,
            NULL AS RelationshipToFamilyHead
          FROM FamilyHead fh
          JOIN Resident head ON fh.ResidentID = head.ResidentID
@@ -247,11 +248,12 @@ export class FamilyRepository {
          SELECT
            fh.FamilyHeadID,
            fh.HeadType,
-          fh.FamilyLabel,
+           fh.FamilyLabel,
            member.ResidentID,
            member.FirstName,
            member.LastName,
            member.DateOfBirth,
+           member.ResidentStatus,
            f.RelationshipToFamilyHead
          FROM FamilyHead fh
          JOIN Family f ON fh.FamilyHeadID = f.FamilyHeadID

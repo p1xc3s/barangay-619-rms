@@ -188,7 +188,8 @@ const ResidentRecords: React.FC = () => {
   const [isHouseholdsLoading, setIsHouseholdsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("All");
-  const [selectedStreetFilter, setSelectedStreetFilter] = useState<string>("All");
+  const [selectedStreetFilter, setSelectedStreetFilter] =
+    useState<string>("All");
   const [page, setPage] = useState(1);
   const [mainSortOrder, setMainSortOrder] = useState<SortOrder>("desc");
   const rowsPerPage = 10;
@@ -285,14 +286,10 @@ const ResidentRecords: React.FC = () => {
     }
   }, []);
 
-
   const loadHouseholdData = useCallback(async () => {
     setIsHouseholdsLoading(true);
     try {
-      await Promise.all([
-        fetchHouseholds(),
-        fetchHouseholdNumbers(),
-      ]);
+      await Promise.all([fetchHouseholds(), fetchHouseholdNumbers()]);
     } finally {
       setIsHouseholdsLoading(false);
     }
@@ -509,7 +506,11 @@ const ResidentRecords: React.FC = () => {
       return;
     }
 
-    if (!window.confirm(`Are you sure you want to proceed with archiving ${residentToArchive.FirstName} ${residentToArchive.LastName} as ${archiveStatus}?`)) {
+    if (
+      !window.confirm(
+        `Are you sure you want to proceed with archiving ${residentToArchive.FirstName} ${residentToArchive.LastName} as ${archiveStatus}?`,
+      )
+    ) {
       return;
     }
 
@@ -753,18 +754,18 @@ const ResidentRecords: React.FC = () => {
     return ["Batas", "Katwiran", "Lubiran"];
   }, []);
 
-  const filteredHouseholds = householdRegistryRows.filter(
-    (h) => {
-      const matchesSearch =
-        h.householdNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        h.Street_Alley_Zone.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        h.householdStatus.toLowerCase().includes(searchQuery.toLowerCase());
-      
-      const matchesStreet = selectedStreetFilter === "All" || h.Street_Alley_Zone === selectedStreetFilter;
+  const filteredHouseholds = householdRegistryRows.filter((h) => {
+    const matchesSearch =
+      h.householdNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      h.Street_Alley_Zone.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      h.householdStatus.toLowerCase().includes(searchQuery.toLowerCase());
 
-      return matchesSearch && matchesStreet;
-    }
-  );
+    const matchesStreet =
+      selectedStreetFilter === "All" ||
+      h.Street_Alley_Zone === selectedStreetFilter;
+
+    return matchesSearch && matchesStreet;
+  });
 
   const residentTotalPages = Math.max(
     1,
@@ -1174,7 +1175,7 @@ const ResidentRecords: React.FC = () => {
                 : `Filtering: ${selectedCategory}`}
             </Button>
           )}
-          
+
           {activeTab === 1 && (
             <Select
               value={selectedStreetFilter}
@@ -1544,12 +1545,17 @@ const ResidentRecords: React.FC = () => {
         initialHouseholdId={preselectedHouseholdId}
         householdOptions={householdNumbers.map((householdNumber) => {
           const matchedHousehold = households.find(
-            (h) => h.householdNumber === householdNumber.HouseholdNumberName && h.HouseNumber
+            (h) =>
+              h.householdNumber === householdNumber.HouseholdNumberName &&
+              h.HouseNumber,
           );
           return {
             id: String(householdNumber.HouseID),
             number: householdNumber.HouseholdNumberName,
-            street: matchedHousehold?.Street_Alley_Zone || householdNumber.StreetName || "",
+            street:
+              matchedHousehold?.Street_Alley_Zone ||
+              householdNumber.StreetName ||
+              "",
             unitRoom: matchedHousehold?.Unit_RoomNo_Floor || "",
             building: matchedHousehold?.Building_Name || "",
             lotBlock: matchedHousehold?.Lot_Block_Phase_Num || "",
@@ -1638,9 +1644,7 @@ const ResidentRecords: React.FC = () => {
           />
         </DialogContent>
         <DialogActions sx={{ p: 2 }}>
-          <Button onClick={() => setIsEditHouseholdOpen(false)}>
-            Cancel
-          </Button>
+          <Button onClick={() => setIsEditHouseholdOpen(false)}>Cancel</Button>
           <Button
             variant="contained"
             onClick={handleSaveHouseholdName}
@@ -1869,7 +1873,7 @@ const ResidentRecords: React.FC = () => {
       <Dialog
         open={isFamilyDetailOpen}
         onClose={() => setIsFamilyDetailOpen(false)}
-        maxWidth="md"
+        maxWidth="lg"
         fullWidth
         PaperProps={{ sx: { borderRadius: 4 } }}
       >
@@ -1981,6 +1985,15 @@ const ResidentRecords: React.FC = () => {
                         AGE
                       </TableCell>
                       <TableCell
+                        sx={{
+                          fontWeight: 800,
+                          bgcolor: "#f8fafc",
+                          width: "15%",
+                        }}
+                      >
+                        STATUS
+                      </TableCell>
+                      <TableCell
                         align="center"
                         sx={{
                           fontWeight: 800,
@@ -2078,6 +2091,20 @@ const ResidentRecords: React.FC = () => {
                             />
                           </TableCell>
                           <TableCell>{calculateAge(m.DateOfBirth)}</TableCell>
+                          <TableCell>
+                            <Chip
+                              label={m.ResidentStatus || "Unknown"}
+                              size="small"
+                              color={
+                                m.ResidentStatus === "Active"
+                                  ? "success"
+                                  : m.ResidentStatus === "Deceased"
+                                    ? "error"
+                                    : "info"
+                              }
+                              sx={{ fontWeight: 700, fontSize: "0.7rem" }}
+                            />
+                          </TableCell>
                           <TableCell align="center">
                             {!isPrimary && groupSize > 1 ? (
                               <Tooltip title="Set as Head of Family">
