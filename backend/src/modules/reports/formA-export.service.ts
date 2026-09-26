@@ -219,27 +219,65 @@ export class FormAExportService {
       let pageNumber = 1;
 
       const drawPageHeader = (): number => {
+        // 1. Title
         doc
           .font("Helvetica-Bold")
-          .fontSize(11)
+          .fontSize(12)
           .fillColor("#111827")
-          .text(
-            "RBI FORM A (Revised 2024) - Official Printable Copy",
-            tableLeft,
-            24,
-          );
+          .text("RBI FORM A (Revised 2024)", tableLeft, 24);
 
+        doc
+          .font("Helvetica-Bold")
+          .fontSize(14)
+          .text("RECORDS OF BARANGAY INHABITANTS BY HOUSEHOLD", tableLeft, 40, {
+            align: "center",
+            width: tableWidth,
+          });
+
+        // 2. The Missing Key Details (Region, Province, City, Barangay)
+        doc.fontSize(10).font("Helvetica-Bold");
+
+        const leftColX = tableLeft;
+        const rightColX = tableLeft + tableWidth * 0.80;
+
+        // ROW 1
+        doc
+          .text("REGION : ", leftColX, 65, { continued: true })
+          .font("Helvetica")
+          .text("NCR");
+
+        doc
+          .font("Helvetica-Bold")
+          .text("PROVINCE : ", rightColX, 65, { continued: true })
+          .font("Helvetica")
+          .text("METRO MANILA");
+
+        // ROW 2
+        doc
+          .font("Helvetica-Bold")
+          .text("CITY/MUNICIPALITY : ", leftColX, 80, { continued: true })
+          .font("Helvetica")
+          .text("MANILA");
+
+        doc
+          .font("Helvetica-Bold")
+          .text("BARANGAY : ", rightColX, 80, { continued: true })
+          .font("Helvetica")
+          .text("BARANGAY 619");
+
+        // 3. Page Number and Timestamp
         doc
           .font("Helvetica")
           .fontSize(8)
           .fillColor("#475569")
-          .text(`Generated: ${generatedAt}`, tableLeft, 38)
-          .text(`Page ${pageNumber}`, tableLeft, 38, {
+          .text(`Generated: ${generatedAt}`, tableLeft, 100)
+          .text(`Page ${pageNumber}`, tableLeft, 100, {
             width: tableWidth,
             align: "right",
           });
 
-        const tableTop = 54;
+        // 4. Draw the Table Columns below the header
+        const tableTop = 115; // Pushed down to make room for our new headers
         let currentX = tableLeft;
 
         for (let index = 0; index < columns.length; index += 1) {
@@ -249,11 +287,11 @@ export class FormAExportService {
             .fillAndStroke("#e2e8f0", "#94a3b8");
           doc
             .font("Helvetica-Bold")
-            .fontSize(7)
-            .fillColor("#111827")
-            .text(column.header, currentX + 2, tableTop + 6, {
+            .fontSize(7) // Slightly smaller font to fit columns nicely
+            .fillColor("#334155")
+            .text(column.header, currentX + 2, tableTop + 5, {
               width: column.width - 4,
-              align: "left",
+              align: "center",
             });
           currentX += column.width;
         }
@@ -311,8 +349,40 @@ export class FormAExportService {
           currentX += column.width;
         }
 
-        currentY += rowHeight;
+               currentY += rowHeight;
       }
+      
+      // If we are too close to the bottom of the page, add a new page first
+      if (currentY + 60 > doc.page.height - doc.page.margins.bottom) {
+        doc.addPage();
+        pageNumber += 1;
+        currentY = drawPageHeader();
+      }
+
+      currentY += 40; // Add some spacing above the signatures
+
+      const sigWidth = 200;
+      const leftSigX = tableLeft;
+      const middleSigX = tableLeft + (tableWidth / 2) - (sigWidth / 2);
+      const rightSigX = tableLeft + tableWidth - sigWidth;
+
+      // 1. Left Signature (Household)
+      doc.font("Helvetica-Bold").fontSize(10).fillColor("#111827");
+      doc.text("All Households", leftSigX, currentY, { width: sigWidth, align: "center" });
+      doc.moveTo(leftSigX + 30, currentY + 12).lineTo(leftSigX + sigWidth - 30, currentY + 12).stroke("#000000");
+      doc.font("Helvetica").fontSize(8).text("Name of Household", leftSigX, currentY + 16, { width: sigWidth, align: "center" });
+
+      // 2. Middle Signature (Barangay Secretary)
+      // (Leaving the bold name empty so the secretary can sign their name on the line)
+      doc.font("Helvetica-Bold").fontSize(10).text(" ", middleSigX, currentY, { width: sigWidth, align: "center" });
+      doc.moveTo(middleSigX + 30, currentY + 12).lineTo(middleSigX + sigWidth - 30, currentY + 12).stroke("#000000");
+      doc.font("Helvetica").fontSize(8).text("Barangay Secretary", middleSigX, currentY + 16, { width: sigWidth, align: "center" });
+
+      // 3. Right Signature (Punong Barangay)
+      doc.font("Helvetica-Bold").fontSize(10).text("Hon. Stephen Famoso", rightSigX, currentY, { width: sigWidth, align: "center" });
+      doc.moveTo(rightSigX + 30, currentY + 12).lineTo(rightSigX + sigWidth - 30, currentY + 12).stroke("#000000");
+      doc.font("Helvetica").fontSize(8).text("Punong Barangay", rightSigX, currentY + 16, { width: sigWidth, align: "center" });
+
 
       doc.end();
     });

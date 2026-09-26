@@ -506,6 +506,8 @@ const FormC_Preview = ({
   sectorHeaderRef,
   barangaySecretaryName,
   punongBarangayName,
+  semesterFilter,
+  yearFilter,
 }: {
   residents: ResidentRecord[];
   formCData?: ReportFormCData | null;
@@ -513,6 +515,8 @@ const FormC_Preview = ({
   sectorHeaderRef?: React.RefObject<HTMLTableRowElement>;
   barangaySecretaryName: string;
   punongBarangayName: string;
+  semesterFilter: string;
+  yearFilter: string;
 }) => {
   const getBracketCount = (
     label: string,
@@ -619,7 +623,7 @@ const FormC_Preview = ({
         MONITORING REPORT
       </Typography>
       <Typography variant="body2" align="center" sx={{ mb: 4 }}>
-        for 2nd Semester of CY 2025
+        for {semesterFilter} of CY {yearFilter}
       </Typography>
 
       <Grid container spacing={0.5} sx={{ mb: 3 }}>
@@ -1687,7 +1691,7 @@ const Reports: React.FC = () => {
     fetchFormAPreview();
   }, [fetchFormAPreview]);
 
-  const startYear = 2026;
+  const startYear = 2020;
   const endYear = currentYear;
   const yearOptions = Array.from(
     { length: endYear - startYear + 1 },
@@ -2373,7 +2377,9 @@ const Reports: React.FC = () => {
                           residents={formAPreviewResidents}
                           totalResidents={formAPreviewTotalRows}
                           householdName={formAHouseholdName}
-                          householdStreet={selectedHousehold?.Street_Alley_Zone || ""}
+                          householdStreet={
+                            selectedHousehold?.Street_Alley_Zone || ""
+                          }
                           barangaySecretaryName={barangaySecretaryName}
                           punongBarangayName={punongBarangayName}
                         />
@@ -2418,8 +2424,11 @@ const Reports: React.FC = () => {
                         sectorHeaderRef={formCSectorHeaderRef}
                         barangaySecretaryName={barangaySecretaryName}
                         punongBarangayName={punongBarangayName}
+                        semesterFilter={semesterFilter}
+                        yearFilter={yearFilter}
                       />
                     )}
+
                     {rbiTemplate === "Cert" && (
                       <Certification_Preview
                         inhabitantsCount={
