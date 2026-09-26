@@ -10,44 +10,45 @@ router.use(authenticate);
 
 //Add resident
 router.post(
-    "/",
-    authorizeRole("Admin", "Staff"),
-    ResidentController.createResident
+  "/",
+  authorizeRole("Admin", "Staff"),
+  ResidentController.createResident,
 );
 
 //Check duplicate resident
 router.post(
-    "/check-duplicate",
-    authorizeRole("Admin", "Staff"),
-    ResidentController.checkDuplicate
+  "/check-duplicate",
+  authorizeRole("Admin", "Staff"),
+  ResidentController.checkDuplicate,
 );
 
 //Get all residents
 router.get(
-    "/",
-    authorizeRole("Admin", "Staff"),
-    ResidentController.getAllResidents
+  "/",
+  authorizeRole("Admin", "Staff"),
+  ResidentController.getAllResidents,
 );
 
 //Search residents
 router.get(
-    "/search",
-    authorizeRole("Admin", "Staff"),
-    ResidentController.searchResidents
+  "/search",
+  authorizeRole("Admin", "Staff"),
+  ResidentController.searchResidents,
 );
 
 //Get resident by ID
 router.get(
-    "/:id",
-    authorizeRole("Admin", "Staff"),
-    ResidentController.getResidentById
+  "/:id",
+  authorizeRole("Admin", "Staff"),
+  ResidentController.getResidentById,
 );
 
 //Update resident
 router.put(
-    "/:id",
-    authorizeRole("Admin", "Staff"),
-    ResidentController.updateResident
+  "/:id",
+  authorizeRole("Admin", "Staff"),
+  ResidentController.updateResident,
 );
 
+router.post("/import", authorizeRole("Admin"), ResidentController.importData);
 export default router;

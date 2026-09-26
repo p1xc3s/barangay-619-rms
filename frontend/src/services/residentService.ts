@@ -92,4 +92,9 @@ export const residentService = {
   async update(id: number, data: UpdateResidentData): Promise<void> {
     await api.put(`/residents/${id}`, data);
   },
+
+  async bulkImport(records: any[]) {
+    const response = await api.post("/residents/import", { records });
+    return response.data;
+  },
 };

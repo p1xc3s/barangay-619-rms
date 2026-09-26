@@ -69,6 +69,7 @@ import { useBarangayLogo } from "../hooks/useBarangayLogo";
 import SortOrderToggle, { type SortOrder } from "./SortOrderToggle";
 import type { ResidentListItem } from "../types";
 import { useAuth } from "../hooks/useAuth";
+import DataImportTab from "./DataImportTab";
 
 interface BarangayInfoForm {
   name: string;
@@ -757,6 +758,7 @@ const Settings: React.FC = () => {
             <Tab label="General" />
             <Tab label="Barangay Officials" />
             <Tab label="User Accounts" />
+            <Tab label="Import Data" />
           </Tabs>
         </Box>
 
@@ -1819,9 +1821,16 @@ const Settings: React.FC = () => {
                 page={usersPage}
                 onChange={(_event, value) => setUsersPage(value)}
               />
+              
             </Box>
           </Box>
         )}
+        {activeTab === 3 && (
+          <Box sx={{ p: 4, overflowY: "auto", flex: 1, bgcolor: "white" }}>
+            <DataImportTab />
+          </Box>
+        )}
+
       </Paper>
 
       <Dialog
