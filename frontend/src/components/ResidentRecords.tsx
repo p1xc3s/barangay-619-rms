@@ -466,6 +466,8 @@ const ResidentRecords: React.FC = () => {
         payload.familyRole = data.familyRole || "Relative";
       }
 
+      console.log("Attempting to save resident with payload:", payload);
+
       await residentService.create(payload);
 
       notify.success("Resident added successfully!");
@@ -487,6 +489,7 @@ const ResidentRecords: React.FC = () => {
       setIsAddModalOpen(false);
       setPreselectedHeadId(undefined);
     } catch (err: unknown) {
+      console.error("CRITICAL SAVE ERROR:", err);
       const message =
         (err as { response?: { data?: { message?: string } } })?.response?.data
           ?.message || "Failed to add resident.";
@@ -1952,7 +1955,7 @@ const ResidentRecords: React.FC = () => {
                         sx={{
                           fontWeight: 800,
                           bgcolor: "#f8fafc",
-                          width: "30%",
+                          width: "25%",
                         }}
                       >
                         NAME
@@ -1961,7 +1964,7 @@ const ResidentRecords: React.FC = () => {
                         sx={{
                           fontWeight: 800,
                           bgcolor: "#f8fafc",
-                          width: "18%",
+                          width: "20%",
                         }}
                       >
                         FAMILY
@@ -1970,7 +1973,7 @@ const ResidentRecords: React.FC = () => {
                         sx={{
                           fontWeight: 800,
                           bgcolor: "#f8fafc",
-                          width: "20%",
+                          width: "15%",
                         }}
                       >
                         ROLE
@@ -1979,7 +1982,7 @@ const ResidentRecords: React.FC = () => {
                         sx={{
                           fontWeight: 800,
                           bgcolor: "#f8fafc",
-                          width: "14%",
+                          width: "10%",
                         }}
                       >
                         AGE
@@ -1998,7 +2001,7 @@ const ResidentRecords: React.FC = () => {
                         sx={{
                           fontWeight: 800,
                           bgcolor: "#f8fafc",
-                          width: "18%",
+                          width: "15%",
                         }}
                       >
                         ACTIONS
@@ -2010,7 +2013,7 @@ const ResidentRecords: React.FC = () => {
                       if (row.type === "header") {
                         return (
                           <TableRow key={`family-${row.familyHeadId}`}>
-                            <TableCell colSpan={5} sx={{ bgcolor: "#f8fafc" }}>
+                            <TableCell colSpan={6} sx={{ bgcolor: "#f8fafc" }}>
                               <Chip
                                 label={row.label}
                                 size="small"

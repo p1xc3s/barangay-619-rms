@@ -87,7 +87,7 @@ export class FamilyRepository {
   static async getFamilyHeadsByHousehold(householdId: number): Promise<any[]> {
     const conn = await pool.getConnection();
     try {
-      const [rows] = await conn.query(
+      const rows = await conn.query(
         `SELECT
            fh.FamilyHeadID AS FamilyHeadID,
            r.ResidentID AS ResidentID,
