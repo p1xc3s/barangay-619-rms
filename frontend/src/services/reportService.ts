@@ -134,4 +134,17 @@ export const reportService = {
     });
     return response.data as Blob;
   },
+
+  async getDynamicDemographics(filters: {
+    ageMin?: number;
+    ageMax?: number;
+    sex?: string;
+    civilStatus?: string;
+    employmentStatus?: string;
+    categories?: string[];
+    street?: string;
+  }): Promise<any> {
+    const response = await api.post("/reports/dynamic-demographics", filters);
+    return response.data;
+  },
 };

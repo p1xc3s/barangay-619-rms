@@ -189,4 +189,14 @@ export class ReportController {
       next(error);
     }
   }
+
+  static async getDynamicDemographics(req: Request, res: Response, next: NextFunction) {
+    try {
+      const filters = req.body;
+      const data = await ReportService.getDynamicDemographics(filters);
+      res.status(200).json({ success: true, data });
+    } catch (error) {
+      next(error);
+    }
+  }
 }

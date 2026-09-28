@@ -37,6 +37,7 @@ import {
   CardActionArea,
   Zoom,
   TablePagination,
+  Autocomplete,
 } from "@mui/material";
 import {
   Download,
@@ -86,6 +87,8 @@ import type {
 } from "../types";
 import html2canvas from "html2canvas";
 import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
+import Papa from "papaparse";
 
 const Transition = React.forwardRef(function Transition(
   props: TransitionProps & {
@@ -1608,6 +1611,111 @@ const Reports: React.FC = () => {
   const rbiPreviewRef = useRef<HTMLDivElement | null>(null);
   const formCSectorHeaderRef = useRef<HTMLTableRowElement>(null!);
 
+  // --- Dynamic Smart Filters State ---
+  const [dynAgeMin, setDynAgeMin] = useState<number | "">("");
+  const [dynAgeMax, setDynAgeMax] = useState<number | "">("");
+  const [dynSex, setDynSex] = useState<string>("All");
+  const [dynCivilStatus, setDynCivilStatus] = useState<string>("All");
+  const [dynEmployment, setDynEmployment] = useState<string>("All");
+  const [dynCategories, setDynCategories] = useState<string[]>([]);
+  const [dynStreet, setDynStreet] = useState<string>("All");
+  
+  const [dynamicResults, setDynamicResults] = useState<any[]>([]);
+  const [isDynamicLoading, setIsDynamicLoading] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
+
+  // The function to trigger the search
+  const handleDynamicSearch = async () => {
+    setIsDynamicLoading(true);
+    setHasSearched(true);
+    try {
+      const filters = {
+        ...(dynAgeMin !== "" && { ageMin: dynAgeMin }),
+        ...(dynAgeMax !== "" && { ageMax: dynAgeMax }),
+        ...(dynSex !== "All" && { sex: dynSex }),
+        ...(dynCivilStatus !== "All" && { civilStatus: dynCivilStatus }),
+        ...(dynEmployment !== "All" && { employmentStatus: dynEmployment }),
+        ...(dynStreet !== "All" && { street: dynStreet }),
+        ...(dynCategories.length > 0 && { categories: dynCategories }),
+      };
+      
+      const res = await reportService.getDynamicDemographics(filters);
+      setDynamicResults(res.data || []);
+    } catch (error) {
+      console.error("Failed to fetch dynamic data", error);
+    } finally {
+      setIsDynamicLoading(false);
+    }
+  };
+
+  const handleClearDynamicFilters = () => {
+    setDynAgeMin("");
+    setDynAgeMax("");
+    setDynSex("All");
+    setDynCivilStatus("All");
+    setDynEmployment("All");
+    setDynStreet("All");
+    setDynCategories([]);
+    setDynamicResults([]);
+    setHasSearched(false);
+  };
+
+    const handleExportCSV = () => {
+    if (!dynamicResults || dynamicResults.length === 0) {
+      notify.error("No data to export.");
+      return;
+    }
+    const csv = Papa.unparse(dynamicResults);
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", `Dynamic_Demographics_${buildDateToken()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    notify.success("Exported CSV successfully.");
+  };
+
+  const handleExportPDF = () => {
+    if (!dynamicResults || dynamicResults.length === 0) {
+      notify.error("No data to export.");
+      return;
+    }
+    
+    const doc = new jsPDF({ orientation: "landscape" });
+    
+    doc.setFontSize(16);
+    doc.text("Custom Demographics Report", 14, 22);
+    
+    doc.setFontSize(10);
+    doc.setTextColor(100);
+    doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 14, 30);
+    
+    const tableColumn = ["ID", "First Name", "Last Name", "Age", "Sex", "Civil Status", "Street", "Categories"];
+    const tableRows = dynamicResults.map((r: any) => [
+      r.ResidentID,
+      r.FirstName,
+      r.LastName,
+      r.Age,
+      r.Sex,
+      r.CivilStatus,
+      r.Street || "N/A",
+      r.Categories || "None"
+    ]);
+
+    autoTable(doc, {
+      head: [tableColumn],
+      body: tableRows,
+      startY: 40,
+      styles: { fontSize: 8 },
+      headStyles: { fillColor: [46, 2, 73] }
+    });
+
+    doc.save(`Dynamic_Demographics_${buildDateToken()}.pdf`);
+    notify.success("Exported PDF successfully.");
+  };
+
   const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);
   };
@@ -2184,6 +2292,134 @@ const Reports: React.FC = () => {
                   Loading demographics data...
                 </Typography>
               )}
+              {/* --- SMART FILTER COMPONENT --- */}
+                <Paper variant="outlined" sx={{ p: 4, borderRadius: 3, borderTop: "4px solid #2e0249", bgcolor: "white", mb: 6 }}>
+                  <Typography variant="h6" fontWeight="bold" sx={{ mb: 1, display: "flex", alignItems: "center", gap: 1 }}>
+                    <Users size={22} className="text-indigo-600" />
+                    Custom Demographics Generator
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 4 }}>
+                    Dynamically filter residents by combining multiple criteria. Leave fields blank to ignore them.
+                  </Typography>
+
+                  <Grid container spacing={3} sx={{ mb: 4 }}>
+                    <Grid size={{ xs: 12, md: 3 }}>
+                      <TextField fullWidth size="small" label="Min Age" type="number" value={dynAgeMin} onChange={(e) => setDynAgeMin(e.target.value === "" ? "" : Number(e.target.value))} />
+                    </Grid>
+                    <Grid size={{ xs: 12, md: 3 }}>
+                      <TextField fullWidth size="small" label="Max Age" type="number" value={dynAgeMax} onChange={(e) => setDynAgeMax(e.target.value === "" ? "" : Number(e.target.value))} />
+                    </Grid>
+                    <Grid size={{ xs: 12, md: 3 }}>
+                      <TextField select fullWidth size="small" label="Sex" value={dynSex} onChange={(e) => setDynSex(e.target.value)}>
+                        <MenuItem value="All">All</MenuItem>
+                        <MenuItem value="Male">Male</MenuItem>
+                        <MenuItem value="Female">Female</MenuItem>
+                      </TextField>
+                    </Grid>
+                    <Grid size={{ xs: 12, md: 3 }}>
+                      <TextField select fullWidth size="small" label="Civil Status" value={dynCivilStatus} onChange={(e) => setDynCivilStatus(e.target.value)}>
+                        <MenuItem value="All">All</MenuItem>
+                        <MenuItem value="Single">Single</MenuItem>
+                        <MenuItem value="Married">Married</MenuItem>
+                        <MenuItem value="Widowed">Widowed</MenuItem>
+                        <MenuItem value="Separated">Separated</MenuItem>
+                      </TextField>
+                    </Grid>
+                    
+                    <Grid size={{ xs: 12, md: 4 }}>
+                      <TextField select fullWidth size="small" label="Employment Status" value={dynEmployment} onChange={(e) => setDynEmployment(e.target.value)}>
+                        <MenuItem value="All">All</MenuItem>
+                        <MenuItem value="Employed">Employed</MenuItem>
+                        <MenuItem value="Unemployed">Unemployed</MenuItem>
+                        <MenuItem value="Student">Student</MenuItem>
+                      </TextField>
+                    </Grid>
+                    <Grid size={{ xs: 12, md: 4 }}>
+                      <TextField select fullWidth size="small" label="Street Name" value={dynStreet} onChange={(e) => setDynStreet(e.target.value)}>
+                        <MenuItem value="All">All</MenuItem>
+                        <MenuItem value="Batas">Batas</MenuItem>
+                        <MenuItem value="Katwiran">Katwiran</MenuItem>
+                        <MenuItem value="Lubiran">Lubiran</MenuItem>
+                      </TextField>
+                    </Grid>
+                    <Grid size={{ xs: 12, md: 4 }}>
+                      <Autocomplete
+                        multiple
+                        size="small"
+                        options={["Single Parent", "Student", "PWD", "Senior Citizen", "Pregnant", "Solo Parent", "4Ps"]}
+                        value={dynCategories}
+                        onChange={(_e, newValue) => setDynCategories(newValue)}
+                        renderInput={(params) => <TextField {...params} label="Special Categories" placeholder="Tags" />}
+                      />
+                    </Grid>
+                  </Grid>
+
+                  <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 2, mb: hasSearched ? 4 : 0 }}>
+                    <Button onClick={handleClearDynamicFilters} sx={{ color: "text.secondary" }}>Clear Filters</Button>
+                    <Button variant="contained" onClick={handleDynamicSearch} disabled={isDynamicLoading} sx={{ bgcolor: "#2e0249", px: 4, borderRadius: 2 }}>
+                      {isDynamicLoading ? "Searching..." : "Preview Data"}
+                    </Button>
+                  </Box>
+
+                  {/* PREVIEW TABLE */}
+                  {hasSearched && (
+                    <Box sx={{ mt: 2, borderTop: "1px solid #f1f5f9", pt: 4 }}>
+                      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 3 }}>
+                        <Typography variant="h6" fontWeight="800" color="#2e0249">
+                          ✨ Found {dynamicResults.length} residents matching your criteria.
+                        </Typography>
+                        <Box sx={{ display: "flex", gap: 2 }}>
+                          <Button onClick={handleExportCSV} variant="outlined" color="success" startIcon={<FileSpreadsheet size={18} />} sx={{ borderRadius: 2 }}>Export CSV</Button>
+                          <Button onClick={handleExportPDF} variant="contained" startIcon={<Download size={18} />} sx={{ bgcolor: "#2e0249", borderRadius: 2 }}>Download PDF</Button>
+                        </Box>
+                      </Box>
+                      
+                      <TableContainer sx={{ maxHeight: 350, border: "1px solid #e2e8f0", borderRadius: 2 }}>
+                        <Table stickyHeader size="small">
+                          <TableHead>
+                            <TableRow>
+                              <TableCell sx={{ fontWeight: "bold", bgcolor: "#f8fafc" }}>Name</TableCell>
+                              <TableCell sx={{ fontWeight: "bold", bgcolor: "#f8fafc" }}>Age</TableCell>
+                              <TableCell sx={{ fontWeight: "bold", bgcolor: "#f8fafc" }}>Sex</TableCell>
+                              <TableCell sx={{ fontWeight: "bold", bgcolor: "#f8fafc" }}>Civil Status</TableCell>
+                              <TableCell sx={{ fontWeight: "bold", bgcolor: "#f8fafc" }}>Categories</TableCell>
+                            </TableRow>
+                          </TableHead>
+                          <TableBody>
+                            {dynamicResults.slice(0, 20).map((row) => (
+                              <TableRow key={row.ResidentID} hover>
+                                <TableCell>{row.FirstName} {row.LastName}</TableCell>
+                                <TableCell>{row.Age}</TableCell>
+                                <TableCell>{row.Sex}</TableCell>
+                                <TableCell>{row.CivilStatus}</TableCell>
+                                <TableCell>
+                                  {row.Categories ? (
+                                    <Chip label={row.Categories} size="small" sx={{ bgcolor: "#ede9fe", color: "#4c1d95", fontWeight: 700, fontSize: "0.7rem" }} />
+                                  ) : "-"}
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                            {dynamicResults.length > 20 && (
+                              <TableRow>
+                                <TableCell colSpan={5} align="center" sx={{ color: "text.secondary", py: 2 }}>
+                                  ...and {dynamicResults.length - 20} more. (Export to view all)
+                                </TableCell>
+                              </TableRow>
+                            )}
+                            {dynamicResults.length === 0 && (
+                              <TableRow>
+                                <TableCell colSpan={5} align="center" sx={{ color: "text.secondary", py: 4 }}>
+                                  No residents found matching these exact filters.
+                                </TableCell>
+                              </TableRow>
+                            )}
+                          </TableBody>
+                        </Table>
+                      </TableContainer>
+                    </Box>
+                  )}
+                </Paper>
+                {/* --- END SMART FILTER COMPONENT --- */}
               <Grid container spacing={3} sx={{ mb: 6 }}>
                 {stats.map((stat, i) => (
                   <Grid size={{ xs: 12, md: 6 }} key={i}>
@@ -2247,6 +2483,7 @@ const Reports: React.FC = () => {
                   </Grid>
                 ))}
               </Grid>
+                              
               <Stack spacing={4}>
                 <Paper
                   variant="outlined"

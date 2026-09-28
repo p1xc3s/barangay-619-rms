@@ -54,6 +54,109 @@ export class ReportRepository {
     }
   }
 
+    // Dynamic Demographics Smart Filter
+  static async getDynamicDemographics(filters: {
+    ageMin?: number;
+    ageMax?: number;
+    sex?: string;
+    civilStatus?: string;
+    employmentStatus?: string;
+    categories?: string[];
+    street?: string;
+  }) {
+    const conn = await pool.getConnection();
+    try {
+      let query = `
+        SELECT
+          r.ResidentID,
+          r.FirstName,
+          r.MiddleName,
+          r.LastName,
+          r.Suffix,
+          r.Sex,
+          r.DateOfBirth,
+          r.CivilStatus,
+          r.RContactNumber as ContactNumber,
+          TIMESTAMPDIFF(YEAR, r.DateOfBirth, CURDATE()) AS Age,
+          hn.StreetName AS Street,
+          emp.EmploymentStatus,
+          GROUP_CONCAT(DISTINCT sc.CategoryName SEPARATOR ', ') AS Categories
+        FROM Resident r
+        LEFT JOIN Household hh ON r.HouseholdID = hh.HouseholdID
+        LEFT JOIN HouseholdNumber hn ON hh.HouseID = hn.HouseID
+        LEFT JOIN Employment emp ON r.ResidentID = emp.ResidentID
+        LEFT JOIN ResidentCategory rc ON r.ResidentID = rc.ResidentID
+        LEFT JOIN SpecialCategory sc ON rc.CategoryID = sc.CategoryID
+        WHERE r.ResidentStatus = 'Active'
+      `;
+
+      const params: any[] = [];
+
+      // 1. Filter by Age
+      if (filters.ageMin !== undefined) {
+        query += ` AND TIMESTAMPDIFF(YEAR, r.DateOfBirth, CURDATE()) >= ?`;
+        params.push(filters.ageMin);
+      }
+      if (filters.ageMax !== undefined) {
+        query += ` AND TIMESTAMPDIFF(YEAR, r.DateOfBirth, CURDATE()) <= ?`;
+        params.push(filters.ageMax);
+      }
+
+      // 2. Filter by Sex
+      if (filters.sex && filters.sex !== 'All') {
+        query += ` AND r.Sex = ?`;
+        params.push(filters.sex);
+      }
+
+      // 3. Filter by Civil Status
+      if (filters.civilStatus && filters.civilStatus !== 'All') {
+        query += ` AND r.CivilStatus = ?`;
+        params.push(filters.civilStatus);
+      }
+
+      // 4. Filter by Employment Status
+      if (filters.employmentStatus && filters.employmentStatus !== 'All') {
+        query += ` AND emp.EmploymentStatus = ?`;
+        params.push(filters.employmentStatus);
+      }
+
+      // 5. Filter by Street
+      if (filters.street && filters.street !== 'All') {
+        query += ` AND hn.StreetName = ?`;
+        params.push(filters.street);
+      }
+
+      query += `
+        GROUP BY 
+          r.ResidentID, r.FirstName, r.MiddleName, r.LastName, r.Suffix, 
+          r.Sex, r.DateOfBirth, r.CivilStatus, r.RContactNumber, hn.StreetName, emp.EmploymentStatus
+      `;
+
+      // 6. Filter by Categories (The tricky part: ensuring they have ALL selected categories)
+      if (filters.categories && filters.categories.length > 0) {
+        query += ` HAVING `;
+        const categoryConditions = filters.categories.map(() => `SUM(sc.CategoryName = ?) > 0`);
+        query += categoryConditions.join(' AND ');
+        params.push(...filters.categories);
+      }
+
+      query += ` ORDER BY r.LastName ASC, r.FirstName ASC`;
+
+      const rows = await conn.query(query, params);
+      return rows.map((row: any) => {
+        const serialized = { ...row };
+        for (const key in serialized) {
+          if (typeof serialized[key] === 'bigint') {
+            serialized[key] = Number(serialized[key]);
+          }
+        }
+        return serialized;
+      });
+    } finally {
+      conn.release();
+    }
+  }
+
   //Total families (family heads)
   static async getTotalFamilies(): Promise<number> {
     const conn = await pool.getConnection();

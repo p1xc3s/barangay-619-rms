@@ -33,4 +33,6 @@ router.post("/exports/audit", ReportController.logExportAudit);
 //GET /api/reports/residents/:id/pdf - Download resident profile PDF (FR4)
 router.get("/residents/:id/pdf", ReportController.downloadResidentPdf);
 
+router.post("/dynamic-demographics", ReportController.getDynamicDemographics);
+
 export default router;

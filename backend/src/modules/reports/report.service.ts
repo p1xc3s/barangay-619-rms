@@ -151,6 +151,10 @@ export class ReportService {
       console.error(`Failed to write ${action} audit log:`, auditError);
     }
   }
+
+  static async getDynamicDemographics(filters: any) {
+    return await ReportRepository.getDynamicDemographics(filters);
+  }
 }
 
 export type { FormAExportFormat };
